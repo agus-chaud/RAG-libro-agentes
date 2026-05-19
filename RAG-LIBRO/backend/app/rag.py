@@ -1,14 +1,23 @@
 """
-Fase 1d: pipeline RAG empaquetado — vectorstore, retriever, answer_with_sources.
+Fases 1d + 2d: pipeline RAG empaquetado — vectorstore, retriever, respuesta sync y streaming.
 
-Contrato para eval y API (Fase 2):
+Contratos públicos:
     answer_with_sources(query, k) -> {"answer": str, "pages": list[int]}
+        Ejecución sync completa; para testing, scripts y clientes sin soporte SSE.
+
+    stream_answer_with_sources(query, k) -> AsyncGenerator[tuple[str, Any], None]
+        Generador asíncrono con protocolo de tres eventos:
+            ("sources", list[int])  — páginas recuperadas antes de generar texto
+            ("token",   str)        — un yield por token real del LLM vía astream()
+            ("done",    None)       — señal de fin de stream
+        El retrieval se ejecuta UNA sola vez. Ver tarea 2.9 y ADR-07.
 
 `pages` provienen del retriever (1-based), no del texto del LLM (criterio A en EVAL.md).
 """
 
 from __future__ import annotations
 
+from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Any
 
@@ -137,7 +146,7 @@ def get_retriever(
 
 def answer_with_sources(query: str, k: int = RETRIEVER_K_DEFAULT) -> dict[str, Any]:
     """
-    Ejecuta retrieval + generación LCEL.
+    Ejecuta retrieval + generación LCEL de forma sincrónica.
 
     Returns:
         {"answer": str, "pages": list[int]} — páginas 1-based del top-k recuperado.
@@ -157,3 +166,54 @@ def answer_with_sources(query: str, k: int = RETRIEVER_K_DEFAULT) -> dict[str, A
     )
     answer = chain.invoke(query)
     return {"answer": answer, "pages": pages}
+
+
+async def stream_answer_with_sources(
+    query: str, k: int = RETRIEVER_K_DEFAULT
+) -> AsyncGenerator[tuple[str, Any], None]:
+    """
+    Generador asíncrono que streamea el pipeline RAG en tres fases ordenadas.
+
+    Protocolo de eventos (tarea 2.9):
+        ("sources", list[int])  — páginas recuperadas (1-based) ANTES de generar texto.
+                                  Permite que la UI muestre badges de fuente mientras
+                                  el LLM todavía está generando.
+        ("token",   str)        — un yield por token real del LLM vía chain.astream().
+                                  NUNCA simular stream post-invoke iterando chars.
+        ("done",    None)       — señal de fin; el consumidor (endpoint SSE) cierra el stream.
+
+    El retrieval se ejecuta UNA SOLA VEZ antes de invocar el LLM. Los mismos docs
+    se usan tanto para extraer páginas como para construir el contexto del chain,
+    evitando una segunda búsqueda vectorial idéntica.
+
+    El endpoint consumidor (Fase 2e) es responsable de traducir estos eventos a
+    SSE (`event: sources`, `event: token`, `event: done`). Esta función no conoce
+    el protocolo HTTP — es pura lógica de negocio.
+
+    Args:
+        query: Pregunta del usuario.
+        k:     Número de chunks a recuperar del índice FAISS.
+
+    Yields:
+        Tuplas ``(tipo, dato)`` según el protocolo descrito arriba.
+    """
+    retriever = get_retriever(k=k)
+    docs = await retriever.ainvoke(query)
+    pages = sorted({p for d in docs if (p := page_pdf_1based(d))})
+
+    yield ("sources", pages)
+
+    chain = (
+        {
+            "context": RunnableLambda(lambda _: format_docs(docs)),
+            "question": RunnablePassthrough(),
+        }
+        | RAG_PROMPT
+        | get_llm()
+        | StrOutputParser()
+    )
+
+    async for chunk in chain.astream(query):
+        yield ("token", chunk)
+
+    yield ("done", None)

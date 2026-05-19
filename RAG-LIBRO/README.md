@@ -69,7 +69,43 @@ uvicorn app.main:app --reload
 
 - API en `http://localhost:8000`
 - Docs interactivos en `http://localhost:8000/docs`
-- Health check: `curl http://localhost:8000/health`
+
+### Endpoints disponibles (Fase 2a–2b)
+
+#### `GET /health`
+
+```powershell
+curl http://localhost:8000/health
+# → {"status":"ok","index_loaded":true}
+```
+
+`index_loaded: false` indica que el índice FAISS no está en RAM — ejecutá el notebook de Fase 1 primero para construirlo en `backend/storage/faiss_index/`.
+
+#### `POST /chat` — respuesta sincrónica
+
+```powershell
+curl -X POST http://localhost:8000/chat `
+  -H "Content-Type: application/json" `
+  -d '{"message": "What is the ReAct loop?"}'
+# → {"answer":"...","pages":[23,45]}
+```
+
+Parámetros del body:
+
+| Campo | Tipo | Default | Descripción |
+|-------|------|---------|-------------|
+| `message` | string | requerido | Pregunta sobre el libro (mínimo 1 carácter) |
+| `k` | int | `4` | Chunks a recuperar del índice (rango 1–20) |
+
+Errores:
+- **422** — payload inválido (ej. `message` vacío) — Pydantic lo valida automáticamente.
+- **503** — índice FAISS no cargado — reiniciá el servidor.
+
+### CORS
+
+La API permite requests cross-origin desde `http://localhost:3000` (Next.js). Si desarrollás el frontend en otro puerto, agregá el origen en `app.add_middleware(CORSMiddleware, allow_origins=[...])` dentro de `backend/app/main.py`.
+
+No uses `allow_origins=["*"]` — bloquea `allow_credentials` y abre la API a cualquier origen externo en producción.
 
 ## Roadmap
 
