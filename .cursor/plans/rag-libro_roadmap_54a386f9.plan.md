@@ -23,11 +23,38 @@ todos:
   - id: fase-1e-eval-tune
     content: "1.13–1.18: run_eval_suite + pytest integration + tuning A/B + documentar ≥70% en EVAL.md."
     status: pending
-  - id: fase-2-api
-    content: Empaquetar en FastAPI con endpoints sync + SSE y CORS.
+  - id: fase-2a-scaffold
+    content: "2.1–2.3: main.py, lifespan singleton FAISS, GET /health."
     status: pending
-  - id: fase-3-frontend
-    content: Construir UI Next.js con streaming y visualización de fuentes.
+  - id: fase-2b-chat-sync
+    content: "2.4–2.6: schemas Pydantic + POST /chat sync + errores HTTP."
+    status: pending
+  - id: fase-2c-cors
+    content: "2.7: CORSMiddleware para http://localhost:3000."
+    status: pending
+  - id: fase-2d-rag-stream
+    content: "2.8–2.9: stream_answer_with_sources en rag.py (astream, no fake stream)."
+    status: pending
+  - id: fase-2e-sse-endpoint
+    content: "2.10–2.12: POST /chat/stream SSE (token, sources, done) sin bloquear loop."
+    status: pending
+  - id: fase-2f-api-tests
+    content: "2.13–2.14: test_api.py con TestClient (health, chat, stream mínimo)."
+    status: pending
+  - id: fase-3a-next-scaffold
+    content: "3.1–3.2: Next.js 14 + Tailwind + NEXT_PUBLIC_API_URL."
+    status: pending
+  - id: fase-3b-chat-shell
+    content: "3.3–3.4: layout chat + estados idle | streaming | done | error."
+    status: pending
+  - id: fase-3c-sse-client
+    content: "3.5–3.6: fetch-event-source POST + handlers token/sources/done."
+    status: pending
+  - id: fase-3d-sources-ui
+    content: "3.7: badges de páginas bajo respuesta del asistente."
+    status: pending
+  - id: fase-3e-ui-gate
+    content: "3.8: smoke E2E manual UI → API (query de EVAL.md)."
     status: pending
   - id: fase-4-overview
     content: Documentar defensa técnica en PROJECT_OVERVIEW.md (gitignored).
@@ -180,24 +207,118 @@ flowchart TD
     tune -->|ok| gate[Gate Fase 1]
 ```
 
-**Fuera de Fase 1:** FastAPI/SSE/singleton → Fase 2.
+**Fuera de Fase 1:** API HTTP → Fase 2a–2f; UI → Fase 3a–3e.
 
 ### Fase 2 — FastAPI + SSE
 
-- Conectar [`RAG-LIBRO/backend/app/rag.py`](RAG-LIBRO/backend/app/rag.py) (creado en Fase 1) a la API.
-- Implementar API en `[C:\Users\Dell\Agus\Ai Agents Imran Ahmad\RAG-LIBRO\backend\app\main.py](C:\Users\Dell\Agus\Ai Agents Imran Ahmad\RAG-LIBRO\backend\app\main.py)`:
-  - `GET /health`
-  - `POST /chat` (sync)
-  - `POST /chat/stream` (SSE: token, sources, done)
-- Configurar CORS para `http://localhost:3000`.
-- Cargar pipeline una sola vez en startup (lifespan singleton).
+**Prerequisito:** gate Fase 1 — [`app/rag.py`](RAG-LIBRO/backend/app/rag.py) con `answer_with_sources` y eval ≥70%.
+
+**Gate de fase:** `uvicorn` sin recargar FAISS por request; `GET /health` OK; `POST /chat` devuelve `{answer, pages}`; `POST /chat/stream` emite `sources` → `token`* → `done`; CORS para `http://localhost:3000`; `pytest tests/test_api.py` verde.
+
+#### Bloque A — Scaffold y lifespan (fase-2a)
+
+| ID | Tarea | Gate |
+|----|-------|------|
+| 2.1 | Crear [`backend/app/main.py`](RAG-LIBRO/backend/app/main.py): app FastAPI; documentar `uvicorn app.main:app --reload` en README | servidor arranca |
+| 2.2 | `lifespan`: startup `build_or_load_vectorstore()` o `load_faiss_index()` + `set_vectorstore`; shutdown opcional `clear_vectorstore_cache` | 2ª request no re-embedea |
+| 2.3 | `GET /health` → `{"status":"ok","index_loaded":true}` (o similar) | curl 200 |
+
+#### Bloque B — Contrato HTTP sync (fase-2b)
+
+| ID | Tarea | Gate |
+|----|-------|------|
+| 2.4 | Schemas Pydantic: `ChatRequest { message, k? }`, `ChatResponse { answer, pages }` | visible en `/docs` |
+| 2.5 | `POST /chat` → `answer_with_sources(request.message, k)` | curl devuelve answer + pages |
+| 2.6 | Errores: 422 validación; 503 si índice ausente (mensaje accionable) | test o curl sin índice |
+
+#### Bloque C — CORS (fase-2c)
+
+| ID | Tarea | Gate |
+|----|-------|------|
+| 2.7 | `CORSMiddleware`: origins `http://localhost:3000`, methods `GET,POST`, headers `Content-Type` | preflight OK desde browser (Fase 3) |
+
+#### Bloque D — Streaming en el core (fase-2d)
+
+| ID | Tarea | Gate |
+|----|-------|------|
+| 2.8 | En [`rag.py`](RAG-LIBRO/backend/app/rag.py): `stream_answer_with_sources(query, k)` — retrieval una vez, yield páginas, luego `chain.astream()` (tokens reales del LLM) | generator documentado |
+| 2.9 | Contrato interno: `("sources", pages)`, `("token", str)`, `("done", None)` — no simular stream post-`invoke` | docstring o nota en README |
+
+#### Bloque E — Endpoint SSE (fase-2e)
+
+| ID | Tarea | Gate |
+|----|-------|------|
+| 2.10 | `POST /chat/stream`: `EventSourceResponse` (`sse-starlette`) → SSE `event: sources`, `event: token`, `event: done` con `data` JSON | curl/httpie ve stream |
+| 2.11 | Orden: `sources` primero (páginas del retriever), luego tokens, luego `done` | UI puede mostrar badges durante el stream |
+| 2.12 | Evitar bloquear event loop (usar `astream` o `run_in_executor` si el LLM es sync) | revisión: ¿bloqueás el loop? |
+
+#### Bloque F — Tests API (fase-2f)
+
+| ID | Tarea | Gate |
+|----|-------|------|
+| 2.13 | [`backend/tests/test_api.py`](RAG-LIBRO/backend/tests/test_api.py): `TestClient` — health, chat sync (mock LLM o fixture) | `pytest tests/test_api.py -v` |
+| 2.14 | Test mínimo `/chat/stream`: leer eventos `sources` + al menos un `token` | opcional `@pytest.mark.slow` con LLM real |
+
+```mermaid
+flowchart TD
+    start[Lifespan startup] --> vs[FAISS en memoria]
+    vs --> health[GET /health]
+    vs --> sync[POST /chat]
+    vs --> streamFn[stream_answer_with_sources]
+    streamFn --> sse[POST /chat/stream]
+    sync --> tests[test_api.py]
+    sse --> tests
+```
+
+**Fuera de Fase 2:** UI Next.js → Fase 3.
 
 ### Fase 3 — Frontend Next.js
 
-- Scaffold Next.js 14 + Tailwind + componentes de UI.
-- Construir chat con estado `idle | streaming | done | error`.
-- Consumir SSE por POST con `@microsoft/fetch-event-source`.
-- Renderizar fuentes/páginas como badges al cierre de respuesta.
+**Prerequisito:** gate Fase 2 — API estable; SSE verificado con curl.
+
+**Gate de fase:** chat en `localhost:3000` con streaming visible; badges de páginas tras evento `sources`; estados `idle | streaming | done | error` correctos.
+
+#### Bloque A — Scaffold (fase-3a)
+
+| ID | Tarea | Gate |
+|----|-------|------|
+| 3.1 | `create-next-app` en [`frontend/`](RAG-LIBRO/frontend): Next 14, App Router, Tailwind | `npm run dev` en :3000 |
+| 3.2 | `.env.local`: `NEXT_PUBLIC_API_URL=http://localhost:8000` | variable leída en cliente |
+
+#### Bloque B — Shell del chat (fase-3b)
+
+| ID | Tarea | Gate |
+|----|-------|------|
+| 3.3 | Layout: lista de mensajes + input + enviar | UI estática renderiza |
+| 3.4 | Estado `idle \| streaming \| done \| error`; input disabled mientras `streaming` | transiciones visibles |
+
+#### Bloque C — Cliente SSE (fase-3c)
+
+| ID | Tarea | Gate |
+|----|-------|------|
+| 3.5 | `@microsoft/fetch-event-source`: `POST` a `/chat/stream` con `{ message }` | sin error CORS |
+| 3.6 | Handlers por `event`: append `token`, set `pages` en `sources`, cerrar en `done` | texto crece en pantalla |
+
+#### Bloque D — Fuentes (fase-3d)
+
+| ID | Tarea | Gate |
+|----|-------|------|
+| 3.7 | Badges/chips con `pages[]` bajo mensaje del asistente | páginas visibles en UI |
+
+#### Bloque E — Gate E2E UI (fase-3e)
+
+| ID | Tarea | Gate |
+|----|-------|------|
+| 3.8 | Smoke manual: pregunta de `EVAL.md` → respuesta stream + fuentes | checklist anticipado Fase 5 |
+
+```mermaid
+flowchart LR
+    f2f[Gate Fase 2] --> f3a[3a Next scaffold]
+    f3a --> f3b[3b chat shell]
+    f3b --> f3c[3c SSE client]
+    f3c --> f3d[3d sources UI]
+    f3d --> f3e[3e E2E gate]
+```
 
 ### Fase 4 — Documento de defensa técnica
 
@@ -235,9 +356,9 @@ flowchart TD
 
 1. Fase 0
 2. Fase 0.5
-3. Fase 1
-4. Fase 2
-5. Fase 3
+3. Fase 1 (1a → 1e)
+4. Fase 2 (2a → 2f)
+5. Fase 3 (3a → 3e)
 6. Fase 4
 7. Fase 5
 

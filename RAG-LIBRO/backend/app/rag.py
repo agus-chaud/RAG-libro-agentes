@@ -64,6 +64,11 @@ RAG_PROMPT = ChatPromptTemplate.from_messages(
 _vectorstore: FAISS | None = None
 
 
+def is_index_loaded() -> bool:
+    """True si el índice FAISS está en memoria (útil para /health)."""
+    return _vectorstore is not None
+
+
 def set_vectorstore(vectorstore: FAISS) -> FAISS:
     """Registra el índice en memoria (notebook, tests, warm-up de API)."""
     global _vectorstore

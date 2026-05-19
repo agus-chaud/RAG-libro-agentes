@@ -57,6 +57,20 @@ Preferí `python -m pytest` en lugar de `pytest` directo (siempre usa el intérp
 
 **LLM:** cadena `openrouter → groq → mock` (`LLM_FALLBACK_CHAIN`). Modelo principal en OpenRouter: `google/gemma-2-9b-it:free`. Ante error de API, timeout o respuesta vacía pasa al siguiente. Sin claves válidas termina en `mock`.
 
+## Levantar la API (Fase 2)
+
+Requiere que el índice FAISS esté construido (Fase 1 completa).
+
+```powershell
+cd RAG-LIBRO\backend
+.\.venv\Scripts\Activate.ps1
+uvicorn app.main:app --reload
+```
+
+- API en `http://localhost:8000`
+- Docs interactivos en `http://localhost:8000/docs`
+- Health check: `curl http://localhost:8000/health`
+
 ## Roadmap
 
 | Fase | Entregable |
