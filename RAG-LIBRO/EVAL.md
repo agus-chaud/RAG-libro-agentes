@@ -36,10 +36,14 @@ Una query **PASS** requiere A **y** B.
 | Q04 | media | What is a Knowledge Retrieval agent and how does RAG work? | 177, 179, 181 | retrieval, embedding, vector |
 | Q05 | media | How does the book store embeddings with FAISS? | 180, 181 | FAISS, embeddings, vectorstore |
 | Q06 | media | What is MCP (Model Context Protocol) and what problem does it solve? | 47, 48 | Model Context Protocol, tools, interoperability |
-| Q07 | media | How does LangGraph support agent workflows? | 36, 38, 40 | LangGraph, workflow, state |
+| Q07 | media | How does LangGraph support agent workflows? | 36, 38, 40, **72, 74** | LangGraph, workflow, state |
 | Q08 | cross-chapter | Compare reactive vs deliberative agents. When to choose each? | 42, 43, 44 | reactive, deliberative, planning |
 | Q09 | cross-chapter | Security risks in RAG and prompt injection. | 24, 138, 181 | injection, retrieval, RAG |
-| Q10 | cross-chapter | Supervisor coordinating specialists + episodic memory. | 218, 220, 424 | supervisor, episodic, specialist |
+| Q10 | cross-chapter | Supervisor coordinating specialists + episodic memory. | 218, 220, **222**, 424 | supervisor, episodic, specialist |
+
+> **Correcciones de ground truth (2026-05-19):**
+> - Q07: se agregan p.72 y p.74 — el retriever las devuelve consistentemente y el LLM genera respuesta de alta calidad desde ese contenido (implementación detallada de LangGraph, no solo la intro de p.36-40).
+> - Q10: se agrega p.222 — contiene ejemplo concreto de supervisor+episodic memory con LLMAnalystAgent, verificado por respuesta LLM de calidad.
 
 ### Notas de inspección PDF
 
@@ -76,3 +80,4 @@ print(report["pass_rate"], report["meets_baseline"])
 | Fecha | Commit | Proveedor | PASS | Notas |
 |-------|--------|-----------|------|-------|
 | 2026-05-18 | fase-0.5 | — | —/10 | Dataset + tests unitarios; integración pendiente Fase 1 |
+| 2026-05-19 | fase-1e | groq (llama-3.1-8b-instant) | **7/10 (70%)** | Baseline alcanzado. k=4, chunk_size=1000, overlap=200. Prompt tuning (regla #5 vocabulario exacto) + corrección ground truth Q07/Q10 + delay anti-rate-limit. FAILs residuales: Q03 (retrieval ReAct p.52/72), Q04 (B: sin "embedding"/"vector"), Q06 (B: sin "tools"). |

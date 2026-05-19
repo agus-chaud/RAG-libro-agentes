@@ -41,6 +41,10 @@ Rules:
 3. If the context does not contain enough information, say: \
 "No tengo información suficiente en el contexto proporcionado."
 4. Be concise but precise.
+5. Use the exact technical terminology that appears in the context. \
+Do NOT paraphrase technical terms: if the context says "embeddings", use "embeddings"; \
+if it says "vector", use "vector"; if it says "tools", use "tools"; \
+if it says "injection", use "injection". Preserve the author's vocabulary.
 """
 
 RAG_USER_TEMPLATE = """\

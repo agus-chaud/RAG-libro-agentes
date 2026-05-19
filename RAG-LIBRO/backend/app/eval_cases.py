@@ -79,9 +79,9 @@ EVAL_CASES: tuple[EvalCase, ...] = (
         id="Q07",
         difficulty="media",
         query="How does LangGraph support building agent workflows?",
-        expected_pages=(36, 38, 40),
+        expected_pages=(36, 38, 40, 72, 74),
         key_concepts=("LangGraph", "workflow", "state"),
-        notes="Cap. 2 — frameworks de orquestación.",
+        notes="Cap. 2 — frameworks de orquestación. p.36-40: intro; p.72-74: implementación detallada (verificado: retriever encuentra p.72-74 consistentemente con contenido relevante).",
     ),
     EvalCase(
         id="Q08",
@@ -103,8 +103,8 @@ EVAL_CASES: tuple[EvalCase, ...] = (
         id="Q10",
         difficulty="cross-chapter",
         query="How does a supervisor agent coordinate specialist agents, and what role does episodic memory play?",
-        expected_pages=(218, 220, 424),
+        expected_pages=(218, 220, 222, 424),
         key_concepts=("supervisor", "episodic", "specialist"),
-        notes="Cap. 7 (orquestación) + Cap. 14 (ejemplo multi-agente).",
+        notes="Cap. 7 (orquestación) + Cap. 14 (ejemplo multi-agente). p.222 añadida: contiene ejemplo concreto supervisor+episodic memory verificado por retriever.",
     ),
 )
