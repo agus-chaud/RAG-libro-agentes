@@ -1,5 +1,5 @@
 """
-Fases 2a-2c: entrypoint FastAPI.
+Fases 2a-2e: entrypoint FastAPI.
 
 Arrancá con:
     uvicorn app.main:app --reload
@@ -10,15 +10,22 @@ para todos los requests (ver app.rag._vectorstore). No se re-embedea por request
 CORS habilitado para http://localhost:3000 (Next.js Fase 3). Lista blanca explícita:
 nunca usar allow_origins=["*"] porque bloquea allow_credentials y abre la API a
 cualquier origen externo en producción.
+
+Endpoints:
+    GET  /health         — readiness check con estado del índice FAISS.
+    POST /chat           — respuesta sincrónica completa {answer, pages}.
+    POST /chat/stream    — SSE streaming: event:sources → event:token* → event:done.
 """
 
 from __future__ import annotations
 
+import json
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from sse_starlette.sse import EventSourceResponse
 
 from app import rag
 from app.schemas import ChatRequest, ChatResponse
@@ -39,7 +46,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="RAG-LIBRO API",
     description="RAG sobre '30 Agents Every AI Engineer Must Build' — FastAPI + LangChain + FAISS.",
-    version="0.3.0",
+    version="0.4.0",
     lifespan=lifespan,
 )
 
@@ -85,3 +92,46 @@ def chat(request: ChatRequest) -> ChatResponse:
         )
     result = rag.answer_with_sources(request.message, request.k)
     return ChatResponse(answer=result["answer"], pages=result["pages"])
+
+
+@app.post("/chat/stream")
+async def chat_stream(request: ChatRequest, http_request: Request) -> EventSourceResponse:
+    """
+    Endpoint de streaming SSE: emite los tokens del LLM a medida que se generan.
+
+    Protocolo de eventos (mismo orden que stream_answer_with_sources en rag.py):
+
+        event: sources  data: <JSON array de ints>   — páginas recuperadas (antes del 1er token)
+        event: token    data: <JSON string>           — un evento por token del LLM
+        event: done     data: null                    — señal de fin; cerrar EventSource
+
+    El evento `sources` se emite antes de invocar el LLM: el cliente puede mostrar
+    los badges de páginas fuente mientras el texto aún está siendo generado.
+
+    Si el cliente cierra la conexión a mitad de stream, el generador se corta para
+    no seguir pagando tokens que nadie va a ver (cancel propagation via is_disconnected).
+
+    Errores:
+    - 422: payload inválido (Pydantic — automático).
+    - 503: índice FAISS no cargado en memoria (reiniciá el servidor).
+    """
+    if not rag.is_index_loaded():
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "El índice FAISS no está disponible. "
+                "Reiniciá el servidor para cargarlo, o ejecutá el notebook de Fase 1 "
+                "para construir el índice en backend/storage/faiss_index/."
+            ),
+        )
+
+    async def event_generator():
+        async for event_type, data in rag.stream_answer_with_sources(
+            request.message, request.k
+        ):
+            if await http_request.is_disconnected():
+                logger.info("Cliente desconectado — stream cancelado antes de 'done'.")
+                break
+            yield {"event": event_type, "data": json.dumps(data)}
+
+    return EventSourceResponse(event_generator())
