@@ -1,0 +1,38 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg
+
+# Env & secrets
+.env
+.env.local
+*.pem
+
+# PDF & vector index (no subir al repo público)
+backend/data/*.pdf
+backend/storage/
+
+# Node / Next.js (Fase 3)
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env*.local
+
+# IDE & OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Documentación privada de defensa (Fase 4)
+PROJECT_OVERVIEW.md
+
+# Jupyter
+.ipynb_checkpoints/

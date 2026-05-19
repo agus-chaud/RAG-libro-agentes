@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "engram": {
+      "command": "C:\\Users\\Dell\\go\\bin\\engram.exe",
+      "args": [
+        "mcp",
+        "--tools=agent",
+        "--project=RAG-libro-agentes"
+      ]
+    }
+  }
+}
