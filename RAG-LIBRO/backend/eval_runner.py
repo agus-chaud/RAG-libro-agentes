@@ -71,13 +71,28 @@ def _run_config_label() -> str:
     return f"{primary} ({chain_raw})"
 
 
-def make_runner(k: int, delay_s: float = 2.0):
-    """Crea runner con delay entre queries para evitar rate-limit de Groq (free tier ~10 rpm)."""
+def _auto_delay(k: int) -> float:
+    """Delay mínimo por query para no superar 6000 TPM (free tier Groq).
+
+    Cada chunk es ~1000 chars / ~250 tokens. Con overhead de prompt+respuesta,
+    la regla empírica es ~300 tokens por chunk. A 6000 TPM y 60s/min:
+      max_req_per_min = 6000 / (k * 300) → delay = 60 / max_req = k * 300 / 100
+    Capped en 2s mínimo (suficiente para RPM en k≤4).
+    """
+    return max(2.0, k * 3.0)
+
+
+def make_runner(k: int, delay_s: float | None = None):
+    """Crea runner con delay entre queries para no superar TPM de Groq (free tier).
+
+    Si delay_s es None, se auto-escala con k via _auto_delay().
+    """
+    effective_delay = delay_s if delay_s is not None else _auto_delay(k)
     call_count = [0]
 
     def run(query: str, **_kw) -> tuple[str, list[int]]:
         if call_count[0] > 0:
-            time.sleep(delay_s)
+            time.sleep(effective_delay)
         call_count[0] += 1
         result = answer_with_sources(query, k=k)
         return result["answer"], result["pages"]
@@ -154,7 +169,7 @@ def run_smoke(k: int = 4) -> None:
     case = EVAL_CASES[0]
     label = _run_config_label()
     print(f"Smoke test — {label}, k={k}, query={case.id}")
-    runner = make_runner(k, delay_s=0)
+    runner = make_runner(k, delay_s=0.0)
     try:
         answer, pages = runner(case.query, k=k)
     except Exception as exc:
@@ -166,8 +181,10 @@ def run_smoke(k: int = 4) -> None:
     sys.exit(0)
 
 
-def run_with_k(k: int, *, save_results: bool = False) -> dict:
-    runner = make_runner(k)
+def run_with_k(k: int, *, save_results: bool = False, delay_s: float | None = None) -> dict:
+    effective_delay = delay_s if delay_s is not None else _auto_delay(k)
+    print(f"  Delay entre queries: {effective_delay:.1f}s (TPM guard)")
+    runner = make_runner(k, delay_s=effective_delay)
     report = run_eval_suite(runner, k=k)
     print_table(report["results"], k)
     rate_pct = report["pass_rate"] * 100
@@ -224,6 +241,24 @@ def main() -> None:
         action="store_true",
         help="Agregar tabla comparativa a EVAL.md",
     )
+    parser.add_argument(
+        "--delay",
+        type=float,
+        default=None,
+        help=(
+            "Segundos de delay entre queries (default: auto-escala con k para respetar "
+            "6000 TPM de Groq free tier). Ejemplo: --delay 12 para k=6 explícito."
+        ),
+    )
+    parser.add_argument(
+        "--inter-k-pause",
+        type=int,
+        default=65,
+        help=(
+            "Segundos de pausa entre distintos valores de k para resetear la ventana TPM "
+            "(default: 65s). Usar 0 para deshabilitar."
+        ),
+    )
     args = parser.parse_args()
 
     apply_llm_env_overrides(args)
@@ -236,9 +271,15 @@ def main() -> None:
 
     best_report = None
     best_k = args.k[0]
+    is_mock = os.environ.get("LLM_FALLBACK_CHAIN", "").split(",")[0].strip() == "mock"
 
-    for k in args.k:
-        report = run_with_k(k, save_results=args.save_results)
+    for idx, k in enumerate(args.k):
+        if idx > 0 and args.inter_k_pause > 0 and not is_mock:
+            print(
+                f"\n--- Pausa inter-k de {args.inter_k_pause}s para resetear ventana TPM ---"
+            )
+            time.sleep(args.inter_k_pause)
+        report = run_with_k(k, save_results=args.save_results, delay_s=args.delay)
         diagnose(report, k)
         if best_report is None or report["pass_rate"] > best_report["pass_rate"]:
             best_report = report

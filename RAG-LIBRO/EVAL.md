@@ -86,6 +86,9 @@ print(report["pass_rate"], report["meets_baseline"])
 | 2026-05-19 | benchmark-or-free | openrouter (nemotron-3-super-120b:free) | **5/10** | Smoke OK. Screening k=4 — bajo baseline; muchos FAIL solo B (Q02,Q04,Q05,Q06). |
 | 2026-05-19 | benchmark-or-free | openrouter (openrouter/free) | **4/10** | Smoke OK. Screening k=4 — router automático; peor que Groq. |
 | 2026-05-19 | benchmark-or-free | — | — | Smoke FAIL 429: llama-3.3-70b, deepseek-v4-flash, gemma-4-31b (upstream rate-limit). |
+| 2026-05-20 | benchmark-fase-b | groq (llama-3.1-8b-instant) | **7/10** k=4,6,8 | Profiling top-2. k=4/6: idénticos (Q03/Q04/Q06 fail). k=8: Q06 resuelto pero Q09 regresa (lost-in-the-middle confirmado). **k=4 óptimo.** |
+| 2026-05-20 | benchmark-fase-b | groq (llama-3.3-70b-versatile) | **6/10** k=4,6,8 | Peor que 8B en todos los k. Fallos estables: Q03(A+B)+Q04+Q05+Q06 B-FAIL. 70B no mejora con k. **Descartado.** |
+| 2026-05-20 | **GANADOR CONFIRMADO** | **groq (llama-3.1-8b-instant)** | **7/10 (70%)** | Config óptima: GROQ_MODEL=llama-3.1-8b-instant, LLM_FALLBACK_CHAIN=groq,openrouter,mock, RETRIEVER_K=4. |
 
 ## Benchmark de modelos
 ### Benchmark 2026-05-19 — groq (llama-3.1-8b-instant), k=4
@@ -152,4 +155,116 @@ PASS rate: 5/10 (50%)
 | Q10 | PASS | PASS | PASS |
 
 PASS rate: 4/10 (40%)
+### Benchmark 2026-05-20 — groq (llama-3.1-8b-instant), k=4
+
+| Query | A-Ret | B-Gen | Global |
+|-------|-------|-------|--------|
+| Q01 | PASS | PASS | PASS |
+| Q02 | PASS | PASS | PASS |
+| Q03 | FAIL | PASS | FAIL |
+| Q04 | PASS | FAIL | FAIL |
+| Q05 | PASS | PASS | PASS |
+| Q06 | PASS | FAIL | FAIL |
+| Q07 | PASS | PASS | PASS |
+| Q08 | PASS | PASS | PASS |
+| Q09 | PASS | PASS | PASS |
+| Q10 | PASS | PASS | PASS |
+
+PASS rate: 7/10 (70%)
+### Benchmark 2026-05-20 — groq (llama-3.1-8b-instant), k=4
+
+| Query | A-Ret | B-Gen | Global |
+|-------|-------|-------|--------|
+| Q01 | PASS | PASS | PASS |
+| Q02 | PASS | PASS | PASS |
+| Q03 | FAIL | PASS | FAIL |
+| Q04 | PASS | FAIL | FAIL |
+| Q05 | PASS | PASS | PASS |
+| Q06 | PASS | FAIL | FAIL |
+| Q07 | PASS | PASS | PASS |
+| Q08 | PASS | PASS | PASS |
+| Q09 | PASS | PASS | PASS |
+| Q10 | PASS | PASS | PASS |
+
+PASS rate: 7/10 (70%)
+### Benchmark 2026-05-20 — groq (llama-3.1-8b-instant), k=6
+
+| Query | A-Ret | B-Gen | Global |
+|-------|-------|-------|--------|
+| Q01 | PASS | PASS | PASS |
+| Q02 | PASS | PASS | PASS |
+| Q03 | FAIL | FAIL | FAIL |
+| Q04 | PASS | FAIL | FAIL |
+| Q05 | PASS | PASS | PASS |
+| Q06 | PASS | FAIL | FAIL |
+| Q07 | PASS | PASS | PASS |
+| Q08 | PASS | PASS | PASS |
+| Q09 | PASS | PASS | PASS |
+| Q10 | PASS | PASS | PASS |
+
+PASS rate: 7/10 (70%)
+### Benchmark 2026-05-20 — groq (llama-3.1-8b-instant), k=8
+
+| Query | A-Ret | B-Gen | Global |
+|-------|-------|-------|--------|
+| Q01 | PASS | PASS | PASS |
+| Q02 | PASS | PASS | PASS |
+| Q03 | FAIL | PASS | FAIL |
+| Q04 | PASS | FAIL | FAIL |
+| Q05 | PASS | PASS | PASS |
+| Q06 | PASS | PASS | PASS |
+| Q07 | PASS | PASS | PASS |
+| Q08 | PASS | PASS | PASS |
+| Q09 | PASS | FAIL | FAIL |
+| Q10 | PASS | PASS | PASS |
+
+PASS rate: 7/10 (70%)
+### Benchmark 2026-05-20 — groq (llama-3.3-70b-versatile), k=4
+
+| Query | A-Ret | B-Gen | Global |
+|-------|-------|-------|--------|
+| Q01 | PASS | PASS | PASS |
+| Q02 | PASS | PASS | PASS |
+| Q03 | FAIL | FAIL | FAIL |
+| Q04 | PASS | FAIL | FAIL |
+| Q05 | PASS | FAIL | FAIL |
+| Q06 | PASS | FAIL | FAIL |
+| Q07 | PASS | PASS | PASS |
+| Q08 | PASS | PASS | PASS |
+| Q09 | PASS | PASS | PASS |
+| Q10 | PASS | PASS | PASS |
+
+PASS rate: 6/10 (60%)
+### Benchmark 2026-05-20 — groq (llama-3.3-70b-versatile), k=6
+
+| Query | A-Ret | B-Gen | Global |
+|-------|-------|-------|--------|
+| Q01 | PASS | PASS | PASS |
+| Q02 | PASS | PASS | PASS |
+| Q03 | FAIL | FAIL | FAIL |
+| Q04 | PASS | FAIL | FAIL |
+| Q05 | PASS | FAIL | FAIL |
+| Q06 | PASS | FAIL | FAIL |
+| Q07 | PASS | PASS | PASS |
+| Q08 | PASS | PASS | PASS |
+| Q09 | PASS | PASS | PASS |
+| Q10 | PASS | PASS | PASS |
+
+PASS rate: 6/10 (60%)
+### Benchmark 2026-05-20 — groq (llama-3.3-70b-versatile), k=8
+
+| Query | A-Ret | B-Gen | Global |
+|-------|-------|-------|--------|
+| Q01 | PASS | PASS | PASS |
+| Q02 | PASS | PASS | PASS |
+| Q03 | FAIL | FAIL | FAIL |
+| Q04 | PASS | FAIL | FAIL |
+| Q05 | PASS | FAIL | FAIL |
+| Q06 | PASS | FAIL | FAIL |
+| Q07 | PASS | PASS | PASS |
+| Q08 | PASS | PASS | PASS |
+| Q09 | PASS | PASS | PASS |
+| Q10 | PASS | PASS | PASS |
+
+PASS rate: 6/10 (60%)
 

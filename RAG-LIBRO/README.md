@@ -4,6 +4,8 @@ RAG sobre el PDF **"30 Agents Every AI Engineer Must Build"** (Imran Ahmad): bac
 
 Proyecto de portfolio con enfoque **eval-first** (`EVAL.md` + tests), APIs de LLMs gratuitos y modo offline vía `MockLLM` (adaptado del capítulo 06 del repo del libro).
 
+**Baseline actual:** 7/10 PASS (70%) con Groq `llama-3.1-8b-instant`, `RETRIEVER_K=4` — validado en benchmark Fase A/B (2026-05-20). Detalle en `EVAL.md` § Benchmark de modelos.
+
 ## Estructura
 
 ```
@@ -12,6 +14,7 @@ RAG-LIBRO/
 │   ├── app/          # Pipeline RAG, LLM router, API (fases 1–2)
 │   ├── data/         # libro.pdf (gitignored)
 │   ├── storage/      # índice FAISS persistido (gitignored)
+│   ├── eval_runner.py # benchmark de modelos y sweep de k (Fase 1e+)
 │   └── tests/        # evals automatizados (fase 0.5+)
 ├── frontend/         # Next.js 14 + chat SSE (fase 3)
 ├── EVAL.md           # 10 queries y criterios PASS/FAIL
@@ -55,7 +58,17 @@ python -m pip install python-dotenv pypdf pytest langchain langchain-core langch
 
 Preferí `python -m pytest` en lugar de `pytest` directo (siempre usa el intérprete del venv activo).
 
-**LLM:** cadena `openrouter → groq → mock` (`LLM_FALLBACK_CHAIN`). OpenRouter: `meta-llama/llama-3.3-70b-instruct:free` con fallback interno a `nvidia/nemotron-3-super-120b-a12b:free` (`OPENROUTER_MODEL_FALLBACK`). Ante error de API, timeout o respuesta vacía pasa al siguiente proveedor. Sin claves válidas termina en `mock`.
+**LLM (config recomendada, post-benchmark):**
+
+| Variable | Valor | Notas |
+|----------|-------|-------|
+| `LLM_FALLBACK_CHAIN` | `groq,openrouter,mock` | Groq primero (mejor PASS en eval); OR como respaldo |
+| `GROQ_MODEL` | `llama-3.1-8b-instant` | 7/10 en k=4/6/8; 70B versatile quedó en 6/10 |
+| `OPENROUTER_MODEL` | `meta-llama/llama-3.3-70b-instruct:free` | Fallback; cupo free ~50 req/día |
+| `OPENROUTER_MODEL_FALLBACK` | `nvidia/nemotron-3-super-120b-a12b:free` | Segundo intento dentro de OR |
+| `RETRIEVER_K` | `4` | Óptimo en Fase B (k=6/8 no mejoran PASS rate) |
+
+Ante error de API, timeout o respuesta vacía pasa al siguiente proveedor. Sin claves válidas termina en `mock`.
 
 ## Levantar la API (Fase 2)
 
@@ -70,7 +83,7 @@ uvicorn app.main:app --reload
 - API en `http://localhost:8000`
 - Docs interactivos en `http://localhost:8000/docs`
 
-### Endpoints disponibles (Fase 2a–2b)
+### Endpoints disponibles (Fase 2)
 
 #### `GET /health`
 
@@ -95,7 +108,17 @@ Parámetros del body:
 | Campo | Tipo | Default | Descripción |
 |-------|------|---------|-------------|
 | `message` | string | requerido | Pregunta sobre el libro (mínimo 1 carácter) |
-| `k` | int | `4` | Chunks a recuperar del índice (rango 1–20) |
+| `k` | int | `4` | Chunks a recuperar (rango 1–20; default validado en benchmark) |
+
+#### `POST /chat/stream` — respuesta en streaming (SSE)
+
+```powershell
+curl -X POST http://localhost:8000/chat/stream `
+  -H "Content-Type: application/json" `
+  -d '{"message": "What is the ReAct loop?"}' `
+  --no-buffer
+# event: sources → event: token (×N) → event: done
+```
 
 Errores:
 - **422** — payload inválido (ej. `message` vacío) — Pydantic lo valida automáticamente.
@@ -107,17 +130,43 @@ La API permite requests cross-origin desde `http://localhost:3000` (Next.js). Si
 
 No uses `allow_origins=["*"]` — bloquea `allow_credentials` y abre la API a cualquier origen externo en producción.
 
+## Evaluación y benchmark de modelos
+
+Golden set de 10 queries en `EVAL.md` (criterios A: retrieval, B: generación). Correr desde `backend/`:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+# Suite completa (default: k=4, cadena del .env)
+python eval_runner.py
+
+# Benchmark: otro modelo / proveedor y guardar en EVAL.md
+python eval_runner.py --k 4 --groq-model llama-3.1-8b-instant --chain groq --save-results
+
+# Profiling de k (delay auto-escala con k para límite TPM de Groq)
+python eval_runner.py --k 4 6 8 --chain groq --save-results
+
+# Smoke: una query (Q01) para validar disponibilidad sin gastar cupo
+python eval_runner.py --smoke --openrouter-model meta-llama/llama-3.3-70b-instruct:free --chain openrouter
+
+pytest tests/test_eval.py -v -m "not integration"   # dataset / criterios
+pytest tests/test_eval.py -v -m integration         # pipeline + LLM real
+pytest tests/test_api.py -v                         # API (mock, sin red)
+```
+
+Flags útiles: `--groq-model`, `--openrouter-model`, `--chain`, `--smoke`, `--save-results`, `--delay`, `--inter-k-pause`.
+
 ## Roadmap
 
-| Fase | Entregable |
-|------|------------|
-| 0 | Scaffold (este commit) |
-| 0.5 | `EVAL.md` completo + `test_eval.py` |
-| 1 | Notebook RAG + `llm.py` (groq / openrouter / mock) |
-| 2 | FastAPI `/health`, `/chat`, `/chat/stream` |
-| 3 | UI Next.js con fuentes por página |
-| 4 | `PROJECT_OVERVIEW.md` (gitignored) |
-| 5 | E2E + README final |
+| Fase | Entregable | Estado |
+|------|------------|--------|
+| 0 | Scaffold | ✓ |
+| 0.5 | `EVAL.md` + `test_eval.py` | ✓ |
+| 1 | Notebook RAG, FAISS, `rag.py`, eval ≥70% | ✓ (7/10) |
+| 1e+ | `eval_runner.py`, benchmark modelos (Fase A/B) | ✓ |
+| 2 | FastAPI `/health`, `/chat`, `/chat/stream`, tests API | ✓ |
+| 3 | UI Next.js con fuentes por página | pendiente |
+| 4 | `PROJECT_OVERVIEW.md` (gitignored, defensa técnica) | en curso |
+| 5 | E2E + pulido portfolio | pendiente |
 
 ## Referencias
 
