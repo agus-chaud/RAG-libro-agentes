@@ -130,11 +130,11 @@ La API permite requests cross-origin desde `http://localhost:3000` (Next.js). Si
 
 No uses `allow_origins=["*"]` — bloquea `allow_credentials` y abre la API a cualquier origen externo en producción.
 
-## Frontend (Fases 3a y 3b)
+## Frontend (Fases 3a–3e)
 
-Interfaz de chat en **Next.js 14** (App Router + Tailwind). Por ahora el texto del asistente es **simulado** en el navegador; la conexión real al stream SSE del backend llega en la fase **3c**.
+Interfaz de chat en **Next.js 14** (App Router + Tailwind) con **SSE real** a `POST /chat/stream` (`@microsoft/fetch-event-source`) y chips de páginas fuente.
 
-Requisitos: Node.js 18+. La API en `:8000` no es obligatoria para probar la UI del chat, pero conviene tenerla lista para las fases siguientes.
+Requisitos: Node.js 18+ **y** API en `:8000` con índice cargado.
 
 ```powershell
 cd RAG-LIBRO\frontend
@@ -148,41 +148,48 @@ npm run dev
 
 ### Qué hay hecho
 
-| Fase | Qué es | Qué podés ver |
-|------|--------|----------------|
-| **3a** | Proyecto Next creado con `create-next-app` | La app arranca en el puerto 3000; el badge **API:** muestra la URL del backend |
-| **3b** | Pantalla de chat (sin SSE todavía) | Lista de mensajes, caja de texto, botón **Enviar**, indicador de estado |
+| Fase | Qué es | Gate |
+|------|--------|------|
+| **3a** | Next 14 + `NEXT_PUBLIC_API_URL` | `npm run dev` :3000 |
+| **3b** | Shell chat + estados `idle \| streaming \| done \| error` | input bloqueado en streaming |
+| **3c** | Cliente SSE (`lib/streamChat.ts`) | texto crece; CORS OK |
+| **3d** | `SourceBadges` bajo respuesta y durante stream | chips `p. N` |
+| **3e** | Smoke E2E | `python scripts/smoke_ui_e2e.py` + checklist `CHECKLIST_E2E.md` |
 
-### Estados del chat (3b)
+### Smoke E2E (3e)
 
-La UI maneja cuatro estados. El input y el botón **Enviar** solo funcionan cuando no está en *Generando…*:
+Con backend levantado:
 
-| Estado | Significado en pantalla |
-|--------|-------------------------|
-| `idle` | Listo — podés escribir |
-| `streaming` | Generando… — entrada bloqueada, ves el texto del asistente aparecer de a poco (simulado) |
-| `done` | Completado — respuesta fijada en la lista, podés enviar otra pregunta |
-| `error` | Error — mensaje en rojo; podés reintentar |
+```powershell
+cd RAG-LIBRO\backend
+.\.venv\Scripts\Activate.ps1
+python ..\scripts\smoke_ui_e2e.py
+```
 
-Para probar el estado de error en desarrollo, enviá exactamente el mensaje `__mock_error__`.
+Usa **Q01** de `EVAL.md` por defecto. Checklist manual UI (B1–B9) para Fase 5: [`CHECKLIST_E2E.md`](CHECKLIST_E2E.md).
 
-### Estructura del frontend (3b)
+### Estados del chat
+
+| Estado | Significado |
+|--------|-------------|
+| `idle` | Listo |
+| `streaming` | SSE activo; badges de páginas + preview con cursor |
+| `done` | Respuesta en historial con `pages` |
+| `error` | Fallo de red/API (mensaje en header) |
+
+### Estructura del frontend
 
 ```
 frontend/
-├── app/page.tsx              # Monta el chat
 ├── components/
-│   ├── ChatShell.tsx         # Orquesta mensajes y estados
-│   ├── MessageList.tsx       # Burbujas usuario / asistente
-│   ├── ChatInput.tsx         # Textarea + Enviar
-│   ├── ChatStatusBar.tsx     # Pill de estado (idle / streaming / …)
-│   └── ApiUrlBadge.tsx       # Muestra NEXT_PUBLIC_API_URL
+│   ├── ChatShell.tsx       # Orquesta SSE + mensajes
+│   ├── MessageList.tsx     # Burbujas + preview streaming
+│   ├── SourceBadges.tsx    # Chips p. N (3d)
+│   └── …
 └── lib/
-    ├── api.ts                # URL del backend
-    └── chat.ts               # Tipos ChatStatus, ChatMessage
+    ├── streamChat.ts       # fetch-event-source (3c)
+    └── chat.ts
 ```
-
-Próximo paso (**3c**): conectar `POST /chat/stream` con `@microsoft/fetch-event-source` y reemplazar el mock en `ChatShell.tsx`.
 
 ## Evaluación y benchmark de modelos
 
@@ -220,7 +227,7 @@ Flags útiles: `--groq-model`, `--openrouter-model`, `--chain`, `--smoke`, `--sa
 | 2 | FastAPI `/health`, `/chat`, `/chat/stream`, tests API | ✓ |
 | 3a | Next.js 14 scaffold + `NEXT_PUBLIC_API_URL` | ✓ |
 | 3b | Shell del chat (layout + estados idle/streaming/done/error) | ✓ |
-| 3c–3e | Cliente SSE, badges de páginas, E2E UI | pendiente |
+| 3c–3e | Cliente SSE, badges, smoke E2E + `CHECKLIST_E2E.md` | ✓ |
 | 4 | `PROJECT_OVERVIEW.md` (gitignored, defensa técnica) | en curso |
 | 5 | E2E + pulido portfolio | pendiente |
 

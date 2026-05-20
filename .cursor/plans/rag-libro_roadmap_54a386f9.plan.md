@@ -46,16 +46,16 @@ todos:
     status: completed
   - id: fase-3b-chat-shell
     content: "3.3–3.4: layout chat + estados idle | streaming | done | error."
-    status: pending
+    status: completed
   - id: fase-3c-sse-client
     content: "3.5–3.6: fetch-event-source POST + handlers token/sources/done."
-    status: pending
+    status: completed
   - id: fase-3d-sources-ui
     content: "3.7: badges de páginas bajo respuesta del asistente."
-    status: pending
+    status: completed
   - id: fase-3e-ui-gate
     content: "3.8: smoke E2E manual UI → API (query de EVAL.md)."
-    status: pending
+    status: completed
   - id: fase-4-overview
     content: Documentar defensa técnica en PROJECT_OVERVIEW.md (gitignored).
     status: completed
