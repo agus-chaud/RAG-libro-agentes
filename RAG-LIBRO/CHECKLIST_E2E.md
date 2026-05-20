@@ -55,22 +55,35 @@ Usar **Q01** de `EVAL.md` (o pegar desde la tabla):
 ```powershell
 cd RAG-LIBRO\backend
 .\.venv\Scripts\Activate.ps1
-pytest tests/test_api.py -v
-pytest tests/test_eval.py -v -m "not integration"
+python -m pytest tests/ -v -m "not integration"   # suite completa offline
+# O por archivo:
+python -m pytest tests/test_api.py -v
+python -m pytest tests/test_eval.py -v -m "not integration"
 ```
+
+**Última corrida (2026-05-20, Fase 5):** **55 passed, 10 deselected, 3 warnings — 92.8 s.**
+Cubre ingestión, vectorstore, RAG core, LLM fallback, MockLLM, API (health/chat/stream con 422/503) y dataset de eval.
 
 ## D — Fase 5 (cierre portfolio)
 
-| # | Item |
-|---|------|
-| D1 | `pytest tests/test_eval.py -v -m integration` → PASS rate ≥ 70% documentado en `EVAL.md` |
-| D2 | `curl` sync + stream documentados en `README.md` probados |
-| D3 | `/docs` FastAPI revisado |
-| D4 | Captura o GIF del chat con Q01 + fuentes |
-| D5 | Tag git `fase-3e` o PR con checklist B marcado |
+| # | Item | Estado |
+|---|------|--------|
+| D1 | `pytest tests/test_eval.py -v -m integration` → PASS rate ≥ 70% documentado en `EVAL.md` | ✓ 7/10 (`EVAL.md` § Registro 2026-05-20) |
+| D2 | `curl` sync + stream documentados en `README.md` probados | Cubierto por smoke A (mismo contrato) |
+| D3 | `/docs` FastAPI revisado | Manual al hacer demo |
+| D4 | Captura o GIF del chat con Q01 + fuentes | Pendiente humano |
+| D5 | Tag git `fase-5-readme` o PR con checklist B marcado | Pendiente humano |
+| D6 | Sección Arquitectura + Validación E2E en `README.md` | ✓ 2026-05-20 |
+| D7 | `PROJECT_OVERVIEW.md` (ADRs 01–12, escalado, límites) | ✓ Fase 4 |
 
 ## Registro smoke 3e
 
 | Fecha | Query | Script | UI manual | Notas |
 |-------|-------|--------|-----------|-------|
 | 2026-05-20 | Q01 | **PASS** (`pages=[2,32,34,36]`, 1 token batch, 171 chars) | pendiente usuario (B1–B9) | Gate API OK; overlap eval p.34. `npm run build` frontend OK. |
+
+## Registro regresión backend (Fase 5)
+
+| Fecha | Comando | Resultado | Notas |
+|-------|---------|-----------|-------|
+| 2026-05-20 | `pytest tests/ -v -m "not integration"` | **55 passed**, 10 deselected, 3 warnings, 92.8 s | Cierre Fase 5 ítem D6. SwigPy deprecation warnings vienen de FAISS — no acción. |

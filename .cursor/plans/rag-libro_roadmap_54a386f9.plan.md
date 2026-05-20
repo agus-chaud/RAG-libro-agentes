@@ -61,7 +61,7 @@ todos:
     status: completed
   - id: fase-5-verify
     content: Validar flujo end-to-end, README final y evidencia de portfolio.
-    status: pending
+    status: completed
 isProject: false
 ---
 

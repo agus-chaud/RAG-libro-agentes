@@ -6,6 +6,28 @@ Proyecto de portfolio con enfoque **eval-first** (`EVAL.md` + tests), APIs de LL
 
 **Baseline actual:** 7/10 PASS (70%) con Groq `llama-3.1-8b-instant`, `RETRIEVER_K=4` — validado en benchmark Fase A/B (2026-05-20). Detalle en `EVAL.md` § Benchmark de modelos.
 
+## Arquitectura
+
+```mermaid
+flowchart LR
+    UI[Next.js 14 :3000<br/>ChatShell + streamChat.ts] -->|POST SSE /chat/stream| API[FastAPI :8000<br/>lifespan singleton]
+    API --> RAG[app/rag.py<br/>LCEL: retriever → prompt → LLM]
+    RAG --> VS[FAISS en RAM<br/>backend/storage/]
+    RAG --> LLM[LLM chain<br/>groq → openrouter → mock]
+    VS -. carga al startup .- DISK[(libro.pdf<br/>+ FAISS persistido)]
+```
+
+**Flujo de un request streaming:**
+
+1. UI hace `POST /chat/stream` con `{ message }` (fetch-event-source, no `EventSource` nativo).
+2. FastAPI valida con Pydantic (422 si vacío) y chequea índice cargado (503 si no).
+3. `rag.stream_answer_with_sources` corre **un solo** retrieval async (k=4).
+4. Emite `event: sources` con páginas 1-based del top-k → la UI ya puede pintar chips.
+5. Streamea `event: token` por cada chunk de `chain.astream` (LCEL real, no fake).
+6. Emite `event: done` y cierra. Si el cliente aborta, el servidor detecta `is_disconnected()` y corta.
+
+Decisiones, alternativas rechazadas y trade-offs detallados: `PROJECT_OVERVIEW.md` (gitignored).
+
 ## Estructura
 
 ```
@@ -92,7 +114,15 @@ curl http://localhost:8000/health
 # → {"status":"ok","index_loaded":true}
 ```
 
-`index_loaded: false` indica que el índice FAISS no está en RAM — ejecutá el notebook de Fase 1 primero para construirlo en `backend/storage/faiss_index/`.
+`index_loaded: false` indica que el índice FAISS no está en RAM. Para construirlo, corré el notebook `backend/notebooks/rag_exploration.ipynb` (Fase 1) o, en línea de comandos:
+
+```powershell
+cd RAG-LIBRO\backend
+.\.venv\Scripts\Activate.ps1
+python -c "from app.rag import build_or_load_vectorstore; build_or_load_vectorstore()"
+```
+
+Se persiste en `backend/storage/faiss_index/` (gitignored). En arranques posteriores, el lifespan lo carga desde disco — no se re-embedea por request.
 
 #### `POST /chat` — respuesta sincrónica
 
@@ -208,13 +238,70 @@ python eval_runner.py --k 4 6 8 --chain groq --save-results
 
 # Smoke: una query (Q01) para validar disponibilidad sin gastar cupo
 python eval_runner.py --smoke --openrouter-model meta-llama/llama-3.3-70b-instruct:free --chain openrouter
-
-pytest tests/test_eval.py -v -m "not integration"   # dataset / criterios
-pytest tests/test_eval.py -v -m integration         # pipeline + LLM real
-pytest tests/test_api.py -v                         # API (mock, sin red)
 ```
 
 Flags útiles: `--groq-model`, `--openrouter-model`, `--chain`, `--smoke`, `--save-results`, `--delay`, `--inter-k-pause`.
+
+## Validación end-to-end (Fase 5)
+
+Suite consolidada de regresión y smokes. Pensada para correr antes de un release/demo y como evidencia de portfolio.
+
+### 1. Regresión backend (offline, sin claves)
+
+```powershell
+cd RAG-LIBRO\backend
+.\.venv\Scripts\Activate.ps1
+python -m pytest tests/ -v -m "not integration"
+```
+
+> **Última corrida (2026-05-20):** 55 passed, 10 deselected, 3 warnings — 92.8 s.
+> Cubre ingestión, vectorstore, RAG core, LLM fallback, MockLLM, API (health/chat/stream con 422/503) y dataset de eval.
+
+### 2. Eval integración con LLM real (PASS ≥ 70%)
+
+Requiere `.env` con `GROQ_API_KEY` válida (o cadena alternativa).
+
+```powershell
+python -m pytest tests/test_eval.py -v -m integration
+# Equivalente con detalle por query:
+python eval_runner.py
+```
+
+Baseline esperada: 7/10 (Groq 8B, k=4). Cualquier corrida nueva debe registrarse en `EVAL.md` § Registro.
+
+### 3. Smoke E2E del contrato SSE (API + protocolo)
+
+Con backend levantado en `:8000` e índice cargado:
+
+```powershell
+python ..\scripts\smoke_ui_e2e.py
+# Otra query del golden set:
+python ..\scripts\smoke_ui_e2e.py --query-id Q03
+```
+
+Valida: `/health.index_loaded=true`, evento `sources` con ints, ≥1 token, `done` final, respuesta ≥ 20 chars.
+
+### 4. Smoke manual UI (B1–B9)
+
+Levantar API + UI y seguir el checklist B en `CHECKLIST_E2E.md`. No puede automatizarse sin Playwright — se verifica a ojo y se anota en el registro del propio checklist.
+
+### 5. Documentación interactiva
+
+```powershell
+# Backend corriendo:
+start http://localhost:8000/docs    # Swagger UI
+start http://localhost:8000/redoc   # ReDoc
+```
+
+### Resumen
+
+| # | Item | Estado |
+|---|------|--------|
+| 1 | `pytest -m "not integration"` (55 tests) | ✓ 2026-05-20 |
+| 2 | `pytest -m integration` ≥ 70% | ✓ 7/10 (`EVAL.md` § Registro) |
+| 3 | `smoke_ui_e2e.py` Q01 | ✓ `CHECKLIST_E2E.md` § Registro smoke 3e |
+| 4 | Checklist B1–B9 UI | Manual — al hacer demo |
+| 5 | `/docs` revisado | Manual — al hacer demo |
 
 ## Roadmap
 
@@ -228,10 +315,15 @@ Flags útiles: `--groq-model`, `--openrouter-model`, `--chain`, `--smoke`, `--sa
 | 3a | Next.js 14 scaffold + `NEXT_PUBLIC_API_URL` | ✓ |
 | 3b | Shell del chat (layout + estados idle/streaming/done/error) | ✓ |
 | 3c–3e | Cliente SSE, badges, smoke E2E + `CHECKLIST_E2E.md` | ✓ |
-| 4 | `PROJECT_OVERVIEW.md` (gitignored, defensa técnica) | en curso |
-| 5 | E2E + pulido portfolio | pendiente |
+| 4 | `PROJECT_OVERVIEW.md` (gitignored, defensa técnica) | ✓ |
+| 5 | E2E + pulido portfolio (regresión 55/55, README arquitectura) | ✓ |
+
+## Defensa técnica (Fase 4)
+
+`PROJECT_OVERVIEW.md` en la raíz del proyecto (gitignored) documenta ADRs, trade-offs, límites medidos y plan de escalado. Uso: entrevistas y decisiones futuras — mantenerlo al día cuando cambies k, modelo o protocolo SSE.
 
 ## Referencias
 
 - Libro / repo: `30-Agents-Every-AI-Engineer-Must-Build`
 - Cap. 06 — RAG y mocks: `chapter06/agent_utils.py`
+- Defensa interna: `PROJECT_OVERVIEW.md` (local, no en git)
