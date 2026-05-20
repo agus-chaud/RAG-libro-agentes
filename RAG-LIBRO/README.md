@@ -130,6 +130,20 @@ La API permite requests cross-origin desde `http://localhost:3000` (Next.js). Si
 
 No uses `allow_origins=["*"]` — bloquea `allow_credentials` y abre la API a cualquier origen externo en producción.
 
+## Frontend (Fase 3a)
+
+Requiere Node.js 18+. La API debe estar en `http://localhost:8000` (Fase 2).
+
+```powershell
+cd RAG-LIBRO\frontend
+copy .env.example .env.local
+npm install
+npm run dev
+```
+
+- UI en `http://localhost:3000`
+- `NEXT_PUBLIC_API_URL` en `.env.local` (ver `frontend/lib/api.ts` y el badge en la home)
+
 ## Evaluación y benchmark de modelos
 
 Golden set de 10 queries en `EVAL.md` (criterios A: retrieval, B: generación). Correr desde `backend/`:
@@ -164,7 +178,8 @@ Flags útiles: `--groq-model`, `--openrouter-model`, `--chain`, `--smoke`, `--sa
 | 1 | Notebook RAG, FAISS, `rag.py`, eval ≥70% | ✓ (7/10) |
 | 1e+ | `eval_runner.py`, benchmark modelos (Fase A/B) | ✓ |
 | 2 | FastAPI `/health`, `/chat`, `/chat/stream`, tests API | ✓ |
-| 3 | UI Next.js con fuentes por página | pendiente |
+| 3a | Next.js 14 scaffold + `NEXT_PUBLIC_API_URL` | ✓ |
+| 3b–3e | Chat SSE, fuentes, E2E UI | pendiente |
 | 4 | `PROJECT_OVERVIEW.md` (gitignored, defensa técnica) | en curso |
 | 5 | E2E + pulido portfolio | pendiente |
 

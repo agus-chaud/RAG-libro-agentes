@@ -43,7 +43,7 @@ todos:
     status: pending
   - id: fase-3a-next-scaffold
     content: "3.1–3.2: Next.js 14 + Tailwind + NEXT_PUBLIC_API_URL."
-    status: pending
+    status: completed
   - id: fase-3b-chat-shell
     content: "3.3–3.4: layout chat + estados idle | streaming | done | error."
     status: pending
