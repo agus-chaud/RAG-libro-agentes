@@ -130,9 +130,11 @@ La API permite requests cross-origin desde `http://localhost:3000` (Next.js). Si
 
 No uses `allow_origins=["*"]` — bloquea `allow_credentials` y abre la API a cualquier origen externo en producción.
 
-## Frontend (Fase 3a)
+## Frontend (Fases 3a y 3b)
 
-Requiere Node.js 18+. La API debe estar en `http://localhost:8000` (Fase 2).
+Interfaz de chat en **Next.js 14** (App Router + Tailwind). Por ahora el texto del asistente es **simulado** en el navegador; la conexión real al stream SSE del backend llega en la fase **3c**.
+
+Requisitos: Node.js 18+. La API en `:8000` no es obligatoria para probar la UI del chat, pero conviene tenerla lista para las fases siguientes.
 
 ```powershell
 cd RAG-LIBRO\frontend
@@ -142,7 +144,45 @@ npm run dev
 ```
 
 - UI en `http://localhost:3000`
-- `NEXT_PUBLIC_API_URL` en `.env.local` (ver `frontend/lib/api.ts` y el badge en la home)
+- Variable `NEXT_PUBLIC_API_URL` en `.env.local` (default `http://localhost:8000`) — se muestra en el header del chat vía `frontend/lib/api.ts`
+
+### Qué hay hecho
+
+| Fase | Qué es | Qué podés ver |
+|------|--------|----------------|
+| **3a** | Proyecto Next creado con `create-next-app` | La app arranca en el puerto 3000; el badge **API:** muestra la URL del backend |
+| **3b** | Pantalla de chat (sin SSE todavía) | Lista de mensajes, caja de texto, botón **Enviar**, indicador de estado |
+
+### Estados del chat (3b)
+
+La UI maneja cuatro estados. El input y el botón **Enviar** solo funcionan cuando no está en *Generando…*:
+
+| Estado | Significado en pantalla |
+|--------|-------------------------|
+| `idle` | Listo — podés escribir |
+| `streaming` | Generando… — entrada bloqueada, ves el texto del asistente aparecer de a poco (simulado) |
+| `done` | Completado — respuesta fijada en la lista, podés enviar otra pregunta |
+| `error` | Error — mensaje en rojo; podés reintentar |
+
+Para probar el estado de error en desarrollo, enviá exactamente el mensaje `__mock_error__`.
+
+### Estructura del frontend (3b)
+
+```
+frontend/
+├── app/page.tsx              # Monta el chat
+├── components/
+│   ├── ChatShell.tsx         # Orquesta mensajes y estados
+│   ├── MessageList.tsx       # Burbujas usuario / asistente
+│   ├── ChatInput.tsx         # Textarea + Enviar
+│   ├── ChatStatusBar.tsx     # Pill de estado (idle / streaming / …)
+│   └── ApiUrlBadge.tsx       # Muestra NEXT_PUBLIC_API_URL
+└── lib/
+    ├── api.ts                # URL del backend
+    └── chat.ts               # Tipos ChatStatus, ChatMessage
+```
+
+Próximo paso (**3c**): conectar `POST /chat/stream` con `@microsoft/fetch-event-source` y reemplazar el mock en `ChatShell.tsx`.
 
 ## Evaluación y benchmark de modelos
 
@@ -179,7 +219,8 @@ Flags útiles: `--groq-model`, `--openrouter-model`, `--chain`, `--smoke`, `--sa
 | 1e+ | `eval_runner.py`, benchmark modelos (Fase A/B) | ✓ |
 | 2 | FastAPI `/health`, `/chat`, `/chat/stream`, tests API | ✓ |
 | 3a | Next.js 14 scaffold + `NEXT_PUBLIC_API_URL` | ✓ |
-| 3b–3e | Chat SSE, fuentes, E2E UI | pendiente |
+| 3b | Shell del chat (layout + estados idle/streaming/done/error) | ✓ |
+| 3c–3e | Cliente SSE, badges de páginas, E2E UI | pendiente |
 | 4 | `PROJECT_OVERVIEW.md` (gitignored, defensa técnica) | en curso |
 | 5 | E2E + pulido portfolio | pendiente |
 

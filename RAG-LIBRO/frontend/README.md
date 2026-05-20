@@ -1,36 +1,72 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Frontend RAG-LIBRO
 
-## Getting Started
+Interfaz del chat sobre el libro. Stack: **Next.js 14**, App Router, Tailwind.
 
-First, run the development server:
+## Arranque rápido
 
-```bash
+```powershell
+copy .env.example .env.local
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Abrí [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+En `.env.local`:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
 
-## Learn More
+Esa URL aparece en el header del chat (componente `ApiUrlBadge`). Todavía no se usa para enviar mensajes — eso viene en la fase **3c**.
 
-To learn more about Next.js, take a look at the following resources:
+## Fases completadas
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 3a — Base del proyecto
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- Proyecto creado con `create-next-app` (TypeScript, Tailwind, App Router).
+- Configuración de la URL del backend con `NEXT_PUBLIC_API_URL`.
+- Helper `lib/api.ts` y badge en pantalla para confirmar que la variable llega al navegador.
 
-## Deploy on Vercel
+**Gate:** `npm run dev` levanta la app en el puerto 3000.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### 3b — Pantalla de chat (UI)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Pantalla completa de conversación, **sin llamar al backend todavía**:
+
+- **Lista de mensajes** — tus preguntas a la derecha, respuestas del asistente a la izquierda.
+- **Entrada** — textarea + botón **Enviar** (Enter envía, Shift+Enter nueva línea).
+- **Estados visibles** — pill en el header: Listo → Generando… → Completado (o Error).
+
+Mientras está en *Generando…*, el input y el botón quedan deshabilitados. La respuesta del asistente se **simula** palabra por palabra (`ChatShell.tsx`); en **3c** eso se reemplaza por el stream SSE de `/chat/stream`.
+
+| Estado | Cuándo |
+|--------|--------|
+| Listo (`idle`) | Al cargar la página |
+| Generando… (`streaming`) | Después de enviar un mensaje |
+| Completado (`done`) | Cuando termina la respuesta simulada |
+| Error (`error`) | Si enviás el texto `__mock_error__` (solo para probar la UI) |
+
+## Archivos principales
+
+| Archivo | Rol |
+|---------|-----|
+| `app/page.tsx` | Página principal → `ChatShell` |
+| `components/ChatShell.tsx` | Estado del chat y envío (mock hasta 3c) |
+| `components/MessageList.tsx` | Historial de burbujas |
+| `components/ChatInput.tsx` | Formulario de mensaje |
+| `components/ChatStatusBar.tsx` | Indicador de estado |
+| `lib/chat.ts` | Tipos y reglas (`canSendMessage`, etc.) |
+| `lib/api.ts` | `getApiUrl()` |
+
+## Scripts
+
+```powershell
+npm run dev      # desarrollo
+npm run build    # build de producción
+npm run lint     # ESLint
+```
+
+## Siguiente fase (3c)
+
+Instalar `@microsoft/fetch-event-source`, hacer `POST` a `{API_URL}/chat/stream` y manejar eventos `sources`, `token` y `done` para mostrar la respuesta real del backend.
