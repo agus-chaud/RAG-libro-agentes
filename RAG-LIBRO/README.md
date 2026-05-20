@@ -55,7 +55,7 @@ python -m pip install python-dotenv pypdf pytest langchain langchain-core langch
 
 Preferí `python -m pytest` en lugar de `pytest` directo (siempre usa el intérprete del venv activo).
 
-**LLM:** cadena `openrouter → groq → mock` (`LLM_FALLBACK_CHAIN`). Modelo principal en OpenRouter: `google/gemma-2-9b-it:free`. Ante error de API, timeout o respuesta vacía pasa al siguiente. Sin claves válidas termina en `mock`.
+**LLM:** cadena `openrouter → groq → mock` (`LLM_FALLBACK_CHAIN`). OpenRouter: `meta-llama/llama-3.3-70b-instruct:free` con fallback interno a `nvidia/nemotron-3-super-120b-a12b:free` (`OPENROUTER_MODEL_FALLBACK`). Ante error de API, timeout o respuesta vacía pasa al siguiente proveedor. Sin claves válidas termina en `mock`.
 
 ## Levantar la API (Fase 2)
 

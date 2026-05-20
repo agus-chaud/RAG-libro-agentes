@@ -9,20 +9,26 @@ Uso:
     .venv\\Scripts\\Activate.ps1
     python eval_runner.py
     python eval_runner.py --k 6
-    python eval_runner.py --k 4 6 8 --provider groq
+    python eval_runner.py --k 4 6 8 --groq-model llama-3.3-70b-versatile --chain groq
+    python eval_runner.py --smoke --openrouter-model nvidia/nemotron-3-super-120b-a12b:free --chain openrouter
+    python eval_runner.py --k 4 --save-results --groq-model llama-3.3-70b-versatile --chain groq
 """
 
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import time
+from datetime import date
 from pathlib import Path
 
 BACKEND = Path(__file__).resolve().parent
+EVAL_MD = BACKEND.parent / "EVAL.md"
 if str(BACKEND) not in sys.path:
     sys.path.insert(0, str(BACKEND))
 
+from app.eval_cases import EVAL_CASES
 from app.ingest import ingest_pdf
 from app.rag import answer_with_sources, build_or_load_vectorstore, set_vectorstore
 from app.vectorstore import create_embeddings
@@ -38,6 +44,31 @@ def build_index(verbose: bool = True) -> None:
     set_vectorstore(vs)
     if verbose:
         print(f"  Índice listo — {vs.index.ntotal} vectores\n")
+
+
+def apply_llm_env_overrides(args: argparse.Namespace) -> None:
+    """Sobreescribe env vars antes de que llm.py construya el modelo."""
+    if args.groq_model:
+        os.environ["GROQ_MODEL"] = args.groq_model
+    if args.openrouter_model:
+        os.environ["OPENROUTER_MODEL"] = args.openrouter_model
+    if args.chain:
+        os.environ["LLM_FALLBACK_CHAIN"] = args.chain
+
+
+def _run_config_label() -> str:
+    """Etiqueta legible del proveedor/modelo activo para logs y EVAL.md."""
+    chain_raw = (os.environ.get("LLM_FALLBACK_CHAIN") or "openrouter,groq,mock").strip()
+    primary = chain_raw.split(",")[0].strip().lower()
+    if primary == "groq":
+        model = os.environ.get("GROQ_MODEL", "?")
+        return f"groq ({model})"
+    if primary == "openrouter":
+        model = os.environ.get("OPENROUTER_MODEL", "?")
+        return f"openrouter ({model})"
+    if primary == "mock":
+        return "mock"
+    return f"{primary} ({chain_raw})"
 
 
 def make_runner(k: int, delay_s: float = 2.0):
@@ -60,7 +91,6 @@ def _pass_symbol(ok: bool) -> str:
 
 def _set_utf8_stdout() -> None:
     """Fuerza UTF-8 en stdout (Windows cp1252 no soporta simbolos unicode)."""
-    import sys, io
     if hasattr(sys.stdout, "reconfigure"):
         try:
             sys.stdout.reconfigure(encoding="utf-8")
@@ -71,7 +101,7 @@ def _set_utf8_stdout() -> None:
 def print_table(results: list[dict], k: int) -> None:
     header = f"{'ID':<5} {'A-Ret':<7} {'B-Gen':<7} {'Global':<8}  Retrieved pages"
     sep = "-" * 65
-    print(f"\n=== Eval k={k} ===")
+    print(f"\n=== Eval k={k} — {_run_config_label()} ===")
     print(header)
     print(sep)
     for r in results:
@@ -83,13 +113,68 @@ def print_table(results: list[dict], k: int) -> None:
     print(sep)
 
 
-def run_with_k(k: int) -> dict:
+def format_results_markdown(report: dict, k: int) -> str:
+    """Bloque markdown para append en EVAL.md."""
+    label = _run_config_label()
+    today = date.today().isoformat()
+    lines = [
+        f"\n### Benchmark {today} — {label}, k={k}\n",
+        "| Query | A-Ret | B-Gen | Global |",
+        "|-------|-------|-------|--------|",
+    ]
+    for r in report["results"]:
+        lines.append(
+            f"| {r['id']} | {_pass_symbol(r['retrieval_ok'])} | "
+            f"{_pass_symbol(r['answer_ok'])} | {_pass_symbol(r['passed'])} |"
+        )
+    rate_pct = report["pass_rate"] * 100
+    lines.append(
+        f"\nPASS rate: {report['passed']}/{report['total']} ({rate_pct:.0f}%)\n"
+    )
+    return "\n".join(lines)
+
+
+def save_results_to_eval_md(report: dict, k: int) -> None:
+    """Agrega tabla comparativa al final de EVAL.md."""
+    block = format_results_markdown(report, k)
+    if not EVAL_MD.is_file():
+        EVAL_MD.write_text("# Evaluación RAG — RAG-LIBRO\n", encoding="utf-8")
+
+    content = EVAL_MD.read_text(encoding="utf-8")
+    marker = "## Benchmark de modelos"
+    if marker not in content:
+        content = content.rstrip() + f"\n\n{marker}\n"
+    content = content.rstrip() + block
+    EVAL_MD.write_text(content + "\n", encoding="utf-8")
+    print(f"  Resultados guardados en {EVAL_MD}")
+
+
+def run_smoke(k: int = 4) -> None:
+    """Una sola query (Q01) para validar que el modelo responde sin gastar el cupo completo."""
+    case = EVAL_CASES[0]
+    label = _run_config_label()
+    print(f"Smoke test — {label}, k={k}, query={case.id}")
+    runner = make_runner(k, delay_s=0)
+    try:
+        answer, pages = runner(case.query, k=k)
+    except Exception as exc:
+        print(f"[SMOKE FAIL] {exc}")
+        sys.exit(1)
+    preview = (answer[:120] + "…") if len(answer) > 120 else answer
+    print(f"[SMOKE OK] Pages: {pages}")
+    print(f"  Preview: {preview}")
+    sys.exit(0)
+
+
+def run_with_k(k: int, *, save_results: bool = False) -> dict:
     runner = make_runner(k)
     report = run_eval_suite(runner, k=k)
     print_table(report["results"], k)
     rate_pct = report["pass_rate"] * 100
     status = "[OK] BASELINE ALCANZADO" if report["meets_baseline"] else "[--] bajo baseline"
     print(f"PASS rate: {report['passed']}/{report['total']} ({rate_pct:.0f}%)  [{status}]")
+    if save_results:
+        save_results_to_eval_md(report, k)
     return report
 
 
@@ -114,18 +199,46 @@ def diagnose(report: dict, k: int) -> None:
 
 def main() -> None:
     _set_utf8_stdout()
-    parser = argparse.ArgumentParser(description="Eval RAG — Fase 1-e")
+    parser = argparse.ArgumentParser(description="Eval RAG — Fase 1-e / benchmark de modelos")
     parser.add_argument("--k", nargs="+", type=int, default=[4], help="Valores de k a evaluar")
     parser.add_argument("--rebuild", action="store_true", help="Forzar reconstrucción del índice")
+    parser.add_argument(
+        "--groq-model",
+        help="Override GROQ_MODEL (ej: llama-3.3-70b-versatile)",
+    )
+    parser.add_argument(
+        "--openrouter-model",
+        help="Override OPENROUTER_MODEL (ej: deepseek/deepseek-v4-flash:free)",
+    )
+    parser.add_argument(
+        "--chain",
+        help="Override LLM_FALLBACK_CHAIN (ej: groq o openrouter,groq)",
+    )
+    parser.add_argument(
+        "--smoke",
+        action="store_true",
+        help="Solo correr Q01 para validar disponibilidad del modelo",
+    )
+    parser.add_argument(
+        "--save-results",
+        action="store_true",
+        help="Agregar tabla comparativa a EVAL.md",
+    )
     args = parser.parse_args()
 
+    apply_llm_env_overrides(args)
+    print(f"Config LLM: {_run_config_label()}\n")
+
     build_index()
+
+    if args.smoke:
+        run_smoke(k=args.k[0])
 
     best_report = None
     best_k = args.k[0]
 
     for k in args.k:
-        report = run_with_k(k)
+        report = run_with_k(k, save_results=args.save_results)
         diagnose(report, k)
         if best_report is None or report["pass_rate"] > best_report["pass_rate"]:
             best_report = report

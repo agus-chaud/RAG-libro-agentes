@@ -24,7 +24,7 @@ Una query **PASS** requiere A **y** B.
 | `k` | 4 | Retriever top-k |
 | `chunk_size` / `overlap` | 1000 / 200 | Fase 1 |
 | LLM en CI | `mock` | Reproducible sin API |
-| LLM local opcional | `groq` / `openrouter` | Comparar calidad generativa |
+| LLM local opcional | `groq` / `openrouter` | Comparar calidad generativa. OR free default: `meta-llama/llama-3.3-70b-instruct:free` (ver `.env.example` para alternativas) |
 
 ## Queries
 
@@ -81,3 +81,75 @@ print(report["pass_rate"], report["meets_baseline"])
 |-------|--------|-----------|------|-------|
 | 2026-05-18 | fase-0.5 | — | —/10 | Dataset + tests unitarios; integración pendiente Fase 1 |
 | 2026-05-19 | fase-1e | groq (llama-3.1-8b-instant) | **7/10 (70%)** | Baseline alcanzado. k=4, chunk_size=1000, overlap=200. Prompt tuning (regla #5 vocabulario exacto) + corrección ground truth Q07/Q10 + delay anti-rate-limit. FAILs residuales: Q03 (retrieval ReAct p.52/72), Q04 (B: sin "embedding"/"vector"), Q06 (B: sin "tools"). |
+| 2026-05-19 | benchmark-fase-a | groq (llama-3.1-8b-instant) | **7/10** | Screening k=4 — ver sección Benchmark de modelos. |
+| 2026-05-19 | benchmark-fase-a | groq (llama-3.3-70b-versatile) | **7/10** | Screening k=4 — empate con 8B; Q03 empeoró (B FAIL). OpenRouter free: smoke falló (429/404). |
+| 2026-05-19 | benchmark-or-free | openrouter (nemotron-3-super-120b:free) | **5/10** | Smoke OK. Screening k=4 — bajo baseline; muchos FAIL solo B (Q02,Q04,Q05,Q06). |
+| 2026-05-19 | benchmark-or-free | openrouter (openrouter/free) | **4/10** | Smoke OK. Screening k=4 — router automático; peor que Groq. |
+| 2026-05-19 | benchmark-or-free | — | — | Smoke FAIL 429: llama-3.3-70b, deepseek-v4-flash, gemma-4-31b (upstream rate-limit). |
+
+## Benchmark de modelos
+### Benchmark 2026-05-19 — groq (llama-3.1-8b-instant), k=4
+
+| Query | A-Ret | B-Gen | Global |
+|-------|-------|-------|--------|
+| Q01 | PASS | PASS | PASS |
+| Q02 | PASS | PASS | PASS |
+| Q03 | FAIL | PASS | FAIL |
+| Q04 | PASS | FAIL | FAIL |
+| Q05 | PASS | PASS | PASS |
+| Q06 | PASS | FAIL | FAIL |
+| Q07 | PASS | PASS | PASS |
+| Q08 | PASS | PASS | PASS |
+| Q09 | PASS | PASS | PASS |
+| Q10 | PASS | PASS | PASS |
+
+PASS rate: 7/10 (70%)
+### Benchmark 2026-05-19 — groq (llama-3.3-70b-versatile), k=4
+
+| Query | A-Ret | B-Gen | Global |
+|-------|-------|-------|--------|
+| Q01 | PASS | PASS | PASS |
+| Q02 | PASS | PASS | PASS |
+| Q03 | FAIL | FAIL | FAIL |
+| Q04 | PASS | FAIL | FAIL |
+| Q05 | PASS | PASS | PASS |
+| Q06 | PASS | FAIL | FAIL |
+| Q07 | PASS | PASS | PASS |
+| Q08 | PASS | PASS | PASS |
+| Q09 | PASS | PASS | PASS |
+| Q10 | PASS | PASS | PASS |
+
+PASS rate: 7/10 (70%)
+### Benchmark 2026-05-20 — openrouter (nvidia/nemotron-3-super-120b-a12b:free), k=4
+
+| Query | A-Ret | B-Gen | Global |
+|-------|-------|-------|--------|
+| Q01 | PASS | PASS | PASS |
+| Q02 | PASS | FAIL | FAIL |
+| Q03 | FAIL | FAIL | FAIL |
+| Q04 | PASS | FAIL | FAIL |
+| Q05 | PASS | FAIL | FAIL |
+| Q06 | PASS | FAIL | FAIL |
+| Q07 | PASS | PASS | PASS |
+| Q08 | PASS | PASS | PASS |
+| Q09 | PASS | PASS | PASS |
+| Q10 | PASS | PASS | PASS |
+
+PASS rate: 5/10 (50%)
+### Benchmark 2026-05-20 — openrouter (openrouter/free), k=4
+
+| Query | A-Ret | B-Gen | Global |
+|-------|-------|-------|--------|
+| Q01 | PASS | FAIL | FAIL |
+| Q02 | PASS | PASS | PASS |
+| Q03 | FAIL | FAIL | FAIL |
+| Q04 | PASS | FAIL | FAIL |
+| Q05 | PASS | FAIL | FAIL |
+| Q06 | PASS | FAIL | FAIL |
+| Q07 | PASS | PASS | PASS |
+| Q08 | PASS | PASS | PASS |
+| Q09 | PASS | FAIL | FAIL |
+| Q10 | PASS | PASS | PASS |
+
+PASS rate: 4/10 (40%)
+

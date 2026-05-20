@@ -184,18 +184,49 @@ def _wrap_validated(model: BaseChatModel) -> ValidatingChatModel:
     return ValidatingChatModel(delegate=model)
 
 
-def _build_openrouter() -> BaseChatModel | None:
-    if not _has_key("OPENROUTER_API_KEY"):
-        return None
+def _openrouter_model_ids() -> tuple[str, str | None]:
+    """Modelo principal y fallback opcional dentro del mismo proveedor OpenRouter."""
+    primary = os.getenv(
+        "OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct:free"
+    ).strip()
+    fallback = (
+        os.getenv(
+            "OPENROUTER_MODEL_FALLBACK",
+            "nvidia/nemotron-3-super-120b-a12b:free",
+        )
+        or ""
+    ).strip()
+    if not fallback or fallback == primary:
+        return primary, None
+    return primary, fallback
+
+
+def _build_openrouter_chat(model_id: str) -> BaseChatModel:
     from langchain_openai import ChatOpenAI
 
     return ChatOpenAI(
-        model=os.getenv("OPENROUTER_MODEL", "google/gemma-2-9b-it:free"),
+        model=model_id,
         api_key=os.getenv("OPENROUTER_API_KEY"),
         base_url=os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
         temperature=0.2,
         timeout=_request_timeout(),
         max_retries=0,
+    )
+
+
+def _build_openrouter() -> BaseChatModel | Runnable | None:
+    if not _has_key("OPENROUTER_API_KEY"):
+        return None
+
+    primary_id, fallback_id = _openrouter_model_ids()
+    primary = _wrap_validated(_build_openrouter_chat(primary_id))
+    if fallback_id is None:
+        return primary
+
+    secondary = _wrap_validated(_build_openrouter_chat(fallback_id))
+    return primary.with_fallbacks(
+        [secondary],
+        exceptions_to_handle=_fallback_exceptions(),
     )
 
 
@@ -216,7 +247,7 @@ def _build_mock() -> BaseChatModel:
     return MockChatModel()
 
 
-def _build_provider_model(provider: Provider) -> BaseChatModel | None:
+def _build_provider_model(provider: Provider) -> BaseChatModel | Runnable | None:
     if provider == "mock":
         return _build_mock()
     if provider == "openrouter":
@@ -226,12 +257,19 @@ def _build_provider_model(provider: Provider) -> BaseChatModel | None:
     return None
 
 
+def _as_validated_runnable(built: BaseChatModel | Runnable) -> Runnable:
+    """Evita doble wrap si OpenRouter ya devolvió una cadena con fallbacks."""
+    if isinstance(built, BaseChatModel):
+        return _wrap_validated(built)
+    return built
+
+
 def _build_fallback_chain(providers: Sequence[Provider]) -> Runnable:
-    models: list[ValidatingChatModel] = []
+    models: list[Runnable] = []
     for provider in providers:
         built = _build_provider_model(provider)
         if built is not None:
-            models.append(_wrap_validated(built))
+            models.append(_as_validated_runnable(built))
 
     if not models:
         models.append(_wrap_validated(_build_mock()))
@@ -257,7 +295,7 @@ def get_llm(provider: Provider | None = None) -> Union[Runnable, BaseChatModel, 
         built = _build_provider_model(provider)
         if built is None:
             return MockLLM()
-        return _wrap_validated(built)
+        return _as_validated_runnable(built)
 
     return _build_fallback_chain(_parse_fallback_chain())
 
