@@ -7,6 +7,8 @@ export interface ChatMessage {
   id: string;
   role: MessageRole;
   content: string;
+  /** Páginas del libro citadas (evento SSE `sources`). */
+  pages?: number[];
 }
 
 export const CHAT_STATUS_LABELS: Record<ChatStatus, string> = {

@@ -6,56 +6,34 @@ import { ChatInput } from "@/components/ChatInput";
 import { ChatStatusBar } from "@/components/ChatStatusBar";
 import { MessageList } from "@/components/MessageList";
 import type { ChatMessage, ChatStatus } from "@/lib/chat";
-
-const MOCK_STREAM_MS = 1400;
-const MOCK_ERROR_TRIGGER = "__mock_error__";
+import { streamChat } from "@/lib/streamChat";
 
 function nextId(): string {
   return crypto.randomUUID();
-}
-
-/**
- * Simula streaming hasta fase 3c (SSE).
- * Mensaje exacto `__mock_error__` fuerza estado error para probar la UI.
- */
-async function mockStreamReply(
-  userText: string,
-  onToken: (chunk: string) => void,
-): Promise<{ ok: true; answer: string } | { ok: false; message: string }> {
-  if (userText === MOCK_ERROR_TRIGGER) {
-    await new Promise((r) => setTimeout(r, 400));
-    return { ok: false, message: "Error simulado (fase 3b)." };
-  }
-
-  const answer =
-    "Respuesta de ejemplo del asistente. En la fase 3c llegará el stream real desde /chat/stream.";
-  const words = answer.split(" ");
-
-  for (let i = 0; i < words.length; i++) {
-    await new Promise((r) => setTimeout(r, MOCK_STREAM_MS / words.length));
-    onToken((i === 0 ? "" : " ") + words[i]);
-  }
-
-  return { ok: true, answer };
 }
 
 export function ChatShell() {
   const [status, setStatus] = useState<ChatStatus>("idle");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [streamingPreview, setStreamingPreview] = useState<string | null>(null);
+  const [streamingPages, setStreamingPages] = useState<number[] | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const streamAbort = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     return () => {
-      streamAbort.current = true;
+      abortRef.current?.abort();
     };
   }, []);
 
   const handleSubmit = useCallback(async (text: string) => {
-    streamAbort.current = false;
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setErrorMessage(null);
     setStreamingPreview(null);
+    setStreamingPages(null);
 
     const userMessage: ChatMessage = {
       id: nextId(),
@@ -66,30 +44,45 @@ export function ChatShell() {
     setStatus("streaming");
 
     let accumulated = "";
+    let pages: number[] = [];
 
-    const result = await mockStreamReply(text, (chunk) => {
-      if (streamAbort.current) return;
-      accumulated += chunk;
-      setStreamingPreview(accumulated);
-    });
+    await streamChat(
+      text,
+      {
+        onSources: (received) => {
+          pages = received;
+          setStreamingPages(received);
+        },
+        onToken: (token) => {
+          accumulated += token;
+          setStreamingPreview(accumulated);
+        },
+        onDone: () => {
+          if (controller.signal.aborted) return;
 
-    if (streamAbort.current) return;
+          setStreamingPreview(null);
+          setStreamingPages(null);
 
-    setStreamingPreview(null);
+          const assistantMessage: ChatMessage = {
+            id: nextId(),
+            role: "assistant",
+            content: accumulated,
+            pages: pages.length > 0 ? pages : undefined,
+          };
+          setMessages((prev) => [...prev, assistantMessage]);
+          setStatus("done");
+        },
+        onError: (message) => {
+          if (controller.signal.aborted) return;
 
-    if (!result.ok) {
-      setStatus("error");
-      setErrorMessage(result.message);
-      return;
-    }
-
-    const assistantMessage: ChatMessage = {
-      id: nextId(),
-      role: "assistant",
-      content: result.answer,
-    };
-    setMessages((prev) => [...prev, assistantMessage]);
-    setStatus("done");
+          setStreamingPreview(null);
+          setStreamingPages(null);
+          setStatus("error");
+          setErrorMessage(message);
+        },
+      },
+      controller.signal,
+    );
   }, []);
 
   return (
@@ -102,7 +95,7 @@ export function ChatShell() {
             </h1>
             <p className="text-sm text-zinc-600">
               Chat sobre &quot;30 Agents Every AI Engineer Must Build&quot; —
-              fase 3b (shell)
+              streaming SSE + fuentes
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -112,7 +105,11 @@ export function ChatShell() {
         </div>
       </header>
 
-      <MessageList messages={messages} streamingPreview={streamingPreview} />
+      <MessageList
+        messages={messages}
+        streamingPreview={streamingPreview}
+        streamingPages={streamingPages}
+      />
 
       <ChatInput status={status} onSubmit={handleSubmit} />
     </div>

@@ -1,13 +1,19 @@
 "use client";
 
+import { SourceBadges } from "@/components/SourceBadges";
 import type { ChatMessage } from "@/lib/chat";
 
 type MessageListProps = {
   messages: ChatMessage[];
   streamingPreview?: string | null;
+  streamingPages?: number[] | null;
 };
 
-export function MessageList({ messages, streamingPreview }: MessageListProps) {
+export function MessageList({
+  messages,
+  streamingPreview,
+  streamingPages,
+}: MessageListProps) {
   const isEmpty = messages.length === 0 && !streamingPreview;
 
   return (
@@ -17,15 +23,15 @@ export function MessageList({ messages, streamingPreview }: MessageListProps) {
     >
       {isEmpty ? (
         <p className="mx-auto max-w-md text-center text-sm text-zinc-500">
-          Preguntá sobre el libro. En la fase 3c se conectará el stream SSE al
-          backend.
+          Preguntá sobre el libro. Las respuestas llegan en streaming desde el
+          backend con las páginas citadas.
         </p>
       ) : (
         <ul className="mx-auto flex max-w-2xl flex-col gap-4">
           {messages.map((msg) => (
             <li
               key={msg.id}
-              className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+              className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}
             >
               <div
                 className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
@@ -39,10 +45,15 @@ export function MessageList({ messages, streamingPreview }: MessageListProps) {
                 </span>
                 {msg.content}
               </div>
+              {msg.role === "assistant" && msg.pages && msg.pages.length > 0 ? (
+                <div className="max-w-[85%] px-1">
+                  <SourceBadges pages={msg.pages} />
+                </div>
+              ) : null}
             </li>
           ))}
           {streamingPreview ? (
-            <li className="flex justify-start">
+            <li className="flex flex-col items-start">
               <div className="max-w-[85%] rounded-2xl border border-sky-200 bg-sky-50 px-4 py-2.5 text-sm leading-relaxed text-zinc-800">
                 <span className="sr-only">Asistente: </span>
                 {streamingPreview}
@@ -51,6 +62,11 @@ export function MessageList({ messages, streamingPreview }: MessageListProps) {
                   aria-hidden
                 />
               </div>
+              {streamingPages && streamingPages.length > 0 ? (
+                <div className="max-w-[85%] px-1">
+                  <SourceBadges pages={streamingPages} />
+                </div>
+              ) : null}
             </li>
           ) : null}
         </ul>
