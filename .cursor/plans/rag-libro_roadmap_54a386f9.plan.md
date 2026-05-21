@@ -56,6 +56,9 @@ todos:
   - id: fase-3e-ui-gate
     content: "3.8: smoke E2E manual UI → API (query de EVAL.md)."
     status: completed
+  - id: fase-3f-suggested-questions
+    content: "3.9: preguntas sugeridas one-click (Q01,Q07,Q08,Q05,Q06); ocultar las ya enviadas."
+    status: completed
   - id: fase-4-overview
     content: Documentar defensa técnica en PROJECT_OVERVIEW.md (gitignored).
     status: completed
@@ -311,6 +314,12 @@ flowchart TD
 |----|-------|------|
 | 3.8 | Smoke manual: pregunta de `EVAL.md` → respuesta stream + fuentes | checklist anticipado Fase 5 |
 
+#### Bloque F — UX demo (fase-3f)
+
+| ID | Tarea | Gate |
+|----|-------|------|
+| 3.9 | `SuggestedQuestions` + `lib/suggestedQuestions.ts`: 5 botones (Q01, Q07, Q08, Q05, Q06); clic = `handleSubmit`; ocultar sugerencias ya enviadas (match exacto user) | B1, B8, B10 en `CHECKLIST_E2E.md`; doc en `frontend/README.md`, `EVAL.md` § UI |
+
 ```mermaid
 flowchart LR
     f2f[Gate Fase 2] --> f3a[3a Next scaffold]
@@ -318,6 +327,7 @@ flowchart LR
     f3b --> f3c[3c SSE client]
     f3c --> f3d[3d sources UI]
     f3d --> f3e[3e E2E gate]
+    f3e --> f3f[3f suggested Q]
 ```
 
 ### Fase 4 — Documento de defensa técnica

@@ -107,8 +107,10 @@ export function ChatShell() {
 
       <MessageList
         messages={messages}
+        status={status}
         streamingPreview={streamingPreview}
         streamingPages={streamingPages}
+        onSuggestedQuestion={handleSubmit}
       />
 
       <ChatInput status={status} onSubmit={handleSubmit} />

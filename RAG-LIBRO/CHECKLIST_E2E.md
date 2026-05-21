@@ -34,21 +34,24 @@ Criterios PASS del script:
 
 ## B — Smoke manual en UI (localhost:3000)
 
-Usar **Q01** de `EVAL.md` (o pegar desde la tabla):
+Demo rápida: **clic en una pregunta sugerida** (5 botones, texto en `frontend/lib/suggestedQuestions.ts`).  
+Equivalente a pegar desde `EVAL.md` — la primera prueba suele ser **Q01**:
 
 > *What is an AI agent according to this book?*
 
 | # | Paso | Esperado | ✓ |
 |---|------|----------|---|
-| B1 | Abrir `http://localhost:3000` | Header muestra API `http://localhost:8000` | |
+| B1 | Abrir `http://localhost:3000` | Header muestra API `http://localhost:8000`; **5 botones** de preguntas sugeridas visibles | |
 | B2 | Estado inicial | Pill **Listo** (`idle`) | |
-| B3 | Enviar Q01 | Pill pasa a **Generando…** (`streaming`); input deshabilitado | |
+| B3 | Clic en sugerida Q01 (o pegar Q01 y **Enviar**) | Pill pasa a **Generando…** (`streaming`); input y sugerencias deshabilitados | |
 | B4 | Durante stream | Texto del asistente crece token a token (cursor parpadeante) | |
 | B5 | Durante stream | Chips ámbar **p. N** aparecen bajo la burbuja (evento `sources`) | |
 | B6 | Al terminar | Pill **Completado** (`done`); mensaje fijo en historial | |
 | B7 | Tras completar | Chips de páginas persisten bajo el mensaje del asistente | |
-| B8 | Segunda pregunta | Input habilitado de nuevo | |
-| B9 | Error forzado | Con backend apagado: pill **Error** + mensaje legible | |
+| B8 | Tras completar | Input habilitado; **4 sugerencias** siguen visibles (Q01 ya no aparece); etiqueta «Más preguntas sugeridas» | |
+| B9 | Segunda pregunta | Clic en otra sugerida o texto libre → nuevo intercambio en historial | |
+| B10 | Usar las 5 sugeridas | Tras la quinta, la sección de sugerencias **desaparece** | |
+| B11 | Error forzado | Con backend apagado: pill **Error** + mensaje legible (`failed to fetch` o similar) | |
 
 ## C — Regresión backend (CI / local)
 
@@ -71,7 +74,7 @@ Cubre ingestión, vectorstore, RAG core, LLM fallback, MockLLM, API (health/chat
 | D1 | `pytest tests/test_eval.py -v -m integration` → PASS rate ≥ 70% documentado en `EVAL.md` | ✓ 7/10 (`EVAL.md` § Registro 2026-05-20) |
 | D2 | `curl` sync + stream documentados en `README.md` probados | Cubierto por smoke A (mismo contrato) |
 | D3 | `/docs` FastAPI revisado | Manual al hacer demo |
-| D4 | Captura o GIF del chat con Q01 + fuentes | Pendiente humano |
+| D4 | Captura o GIF del chat con Q01 + fuentes (ideal: demo con clic en sugerida) | Pendiente humano |
 | D5 | Tag git `fase-5-readme` o PR con checklist B marcado | Pendiente humano |
 | D6 | Sección Arquitectura + Validación E2E en `README.md` | ✓ 2026-05-20 |
 | D7 | `PROJECT_OVERVIEW.md` (ADRs 01–12, escalado, límites) | ✓ Fase 4 |
@@ -80,7 +83,7 @@ Cubre ingestión, vectorstore, RAG core, LLM fallback, MockLLM, API (health/chat
 
 | Fecha | Query | Script | UI manual | Notas |
 |-------|-------|--------|-----------|-------|
-| 2026-05-20 | Q01 | **PASS** (`pages=[2,32,34,36]`, 1 token batch, 171 chars) | pendiente usuario (B1–B9) | Gate API OK; overlap eval p.34. `npm run build` frontend OK. |
+| 2026-05-20 | Q01 | **PASS** (`pages=[2,32,34,36]`, 1 token batch, 171 chars) | pendiente usuario (B1–B11) | Gate API OK; overlap eval p.34. `npm run build` frontend OK. 3f sugerencias doc 2026-05-21. |
 
 ## Registro regresión backend (Fase 5)
 

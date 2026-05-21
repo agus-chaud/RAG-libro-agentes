@@ -41,6 +41,20 @@ Una query **PASS** requiere A **y** B.
 | Q09 | cross-chapter | Security risks in RAG and prompt injection. | 24, 138, 181 | injection, retrieval, RAG |
 | Q10 | cross-chapter | Supervisor coordinating specialists + episodic memory. | 218, 220, **222**, 424 | supervisor, episodic, specialist |
 
+## UI — preguntas sugeridas (frontend 3f)
+
+Cinco queries del golden set se exponen en la UI como botones one-click (`frontend/lib/suggestedQuestions.ts`). Mantener **sincronizado** el texto con esta tabla y con `eval_cases.py` cuando cambie una query.
+
+| Botón en UI (orden en pantalla) | ID eval | Dificultad |
+|--------------------------------|---------|------------|
+| What is an AI agent according to this book? | Q01 | fácil |
+| How does LangGraph support agent workflows? | Q07 | media |
+| Compare reactive vs deliberative agents. When to choose each? | Q08 | cross-chapter |
+| How does the book store embeddings with FAISS? | Q05 | media |
+| What is MCP (Model Context Protocol) and what problem does it solve? | Q06 | media |
+
+Q02, Q03, Q04, Q09 y Q10 no están en la UI por defecto; probalas vía `eval_runner.py`, smoke API (`--query-id`) o texto libre en el chat.
+
 > **Correcciones de ground truth (2026-05-19):**
 > - Q07: se agregan p.72 y p.74 — el retriever las devuelve consistentemente y el LLM genera respuesta de alta calidad desde ese contenido (implementación detallada de LangGraph, no solo la intro de p.36-40).
 > - Q10: se agrega p.222 — contiene ejemplo concreto de supervisor+episodic memory con LLMAnalystAgent, verificado por respuesta LLM de calidad.

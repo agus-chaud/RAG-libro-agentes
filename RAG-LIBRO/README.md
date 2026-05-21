@@ -185,6 +185,11 @@ npm run dev
 | **3c** | Cliente SSE (`lib/streamChat.ts`) | texto crece; CORS OK |
 | **3d** | `SourceBadges` bajo respuesta y durante stream | chips `p. N` |
 | **3e** | Smoke E2E | `python scripts/smoke_ui_e2e.py` + checklist `CHECKLIST_E2E.md` |
+| **3f** | Preguntas sugeridas one-click | 5 botones = subset de `EVAL.md` (Q01, Q07, Q08, Q05, Q06); ver `frontend/README.md` |
+
+### Demo en la UI (3f)
+
+Con API y frontend levantados, abrí `http://localhost:3000`: aparecen **cinco preguntas sugeridas** para probar el RAG sin escribir. Un clic envía la misma petición que el formulario. Las sugerencias ya usadas se ocultan; el resto sigue visible bajo el historial hasta completar las cinco. Detalle de archivos y criterios: [`frontend/README.md`](frontend/README.md) y checklist **B1–B11** en [`CHECKLIST_E2E.md`](CHECKLIST_E2E.md).
 
 ### Smoke E2E (3e)
 
@@ -196,7 +201,7 @@ cd RAG-LIBRO\backend
 python ..\scripts\smoke_ui_e2e.py
 ```
 
-Usa **Q01** de `EVAL.md` por defecto. Checklist manual UI (B1–B9) para Fase 5: [`CHECKLIST_E2E.md`](CHECKLIST_E2E.md).
+Usa **Q01** de `EVAL.md` por defecto. Checklist manual UI (B1–B11, incluye sugerencias 3f) para Fase 5: [`CHECKLIST_E2E.md`](CHECKLIST_E2E.md).
 
 ### Estados del chat
 
@@ -212,12 +217,14 @@ Usa **Q01** de `EVAL.md` por defecto. Checklist manual UI (B1–B9) para Fase 5:
 ```
 frontend/
 ├── components/
-│   ├── ChatShell.tsx       # Orquesta SSE + mensajes
-│   ├── MessageList.tsx     # Burbujas + preview streaming
-│   ├── SourceBadges.tsx    # Chips p. N (3d)
+│   ├── ChatShell.tsx           # Orquesta SSE + mensajes
+│   ├── MessageList.tsx         # Burbujas + preview + sugerencias pendientes
+│   ├── SuggestedQuestions.tsx  # Botones one-click (3f)
+│   ├── SourceBadges.tsx        # Chips p. N (3d)
 │   └── …
 └── lib/
-    ├── streamChat.ts       # fetch-event-source (3c)
+    ├── suggestedQuestions.ts   # Lista canónica + filtro por mensajes user
+    ├── streamChat.ts           # fetch-event-source (3c)
     └── chat.ts
 ```
 
@@ -281,7 +288,7 @@ python ..\scripts\smoke_ui_e2e.py --query-id Q03
 
 Valida: `/health.index_loaded=true`, evento `sources` con ints, ≥1 token, `done` final, respuesta ≥ 20 chars.
 
-### 4. Smoke manual UI (B1–B9)
+### 4. Smoke manual UI (B1–B11)
 
 Levantar API + UI y seguir el checklist B en `CHECKLIST_E2E.md`. No puede automatizarse sin Playwright — se verifica a ojo y se anota en el registro del propio checklist.
 
@@ -300,7 +307,7 @@ start http://localhost:8000/redoc   # ReDoc
 | 1 | `pytest -m "not integration"` (55 tests) | ✓ 2026-05-20 |
 | 2 | `pytest -m integration` ≥ 70% | ✓ 7/10 (`EVAL.md` § Registro) |
 | 3 | `smoke_ui_e2e.py` Q01 | ✓ `CHECKLIST_E2E.md` § Registro smoke 3e |
-| 4 | Checklist B1–B9 UI | Manual — al hacer demo |
+| 4 | Checklist B1–B11 UI | Manual — al hacer demo |
 | 5 | `/docs` revisado | Manual — al hacer demo |
 
 ## Roadmap
